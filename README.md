@@ -7,11 +7,21 @@
 [![Live demo](https://img.shields.io/badge/demo-live%203D%20simulator-d9680a)](https://zakcination.github.io/fleetsim/live.html)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-3a9a4c)](CONTRIBUTING.md)
 
-**Amazon-style fulfillment fleet: task allocation + MAPF + throughput analytics.** Open source, MIT.
+**An open lab for robot-fleet management: task allocation, multi-agent path finding, fleet health and throughput analytics.** Every claim is a pre-registered trial you can re-run. Open source, MIT.
 
-**🎓 [Academy](https://zakcination.github.io/fleetsim/academy.html)**: start with one robot, follow missions, open any robot's components, battery and repair jobs · **▶ [Live 3D simulator](https://zakcination.github.io/fleetsim/live.html)**: steer robots, demand, stations, dispatch policy and planner with sliders · **📖 [Field guide](https://zakcination.github.io/fleetsim/guide.html)**: the concepts, with in-browser demos · **🎬 [Teaser](docs/media/teaser.mp4)**
+| Play | Learn | Build | Research |
+|---|---|---|---|
+| **[Academy](https://zakcination.github.io/fleetsim/academy.html)**: start with one robot, grow a fleet, open any robot's battery, parts and repair job | **[Learning path](docs/LEARNING_PATH.md)**: six levels with worked calculations · **[Field guide](https://zakcination.github.io/fleetsim/guide.html)** | **[Extend it](docs/EXTENDING.md)**: a dispatch or maintenance policy in 30 lines · **[Roadmap](docs/ROADMAP.md)** | **[Trials](docs/trials/README.md)**: hypotheses written before the run, 10 seeds, 95% intervals, failed predictions reported |
 
-`fleetsim` simulates a goods-to-person warehouse. Drive units fetch storage pods, bring them to pick stations and put them back. The project is built in layers. v0.1 is the foundation: a grid world from a real benchmark map, a collision-free multi-robot planner, two task-allocation policies, and tick-level analytics. Later layers add ROS 2 nodes, Gazebo/Isaac visualisation, a perception pick station and learned policies (see [Roadmap](#roadmap)).
+**Findings so far**
+
+| Trial | Question | Finding |
+|---|---|---|
+| [T1](docs/trials/T1-allocation.md) | Is the Hungarian method's gain optimal matching or queue discipline? | Queue discipline: a one-line nearest-pair rule reaches 100.5–101% of its throughput (300 runs, 0 collisions) |
+| [T2](docs/trials/T2-repair-capacity.md) | How many technicians does a fleet need? | With one technician, 73–86% of repair time is waiting for them. Its design was confounded by charging; the clean rerun [T2b](docs/trials/T2b-repair-capacity-no-battery.md) shows the crew must match the repair work on offer (failures/h × time per job), and my diminishing-returns prediction failed |
+| [T3](docs/trials/T3-maintenance.md) | Run to failure, fixed intervals or condition-based maintenance? | Condition-based maintenance cuts failures by 34–48% and always beats a fixed interval, which was worse than doing nothing. Its throughput gain depends on the regime: +5.5% when charging limits the fleet, 0.7% with longer order waits when it doesn't ([T3b](docs/trials/T3b-maintenance-no-battery.md)) |
+
+`fleetsim` simulates an Amazon-style goods-to-person warehouse. Drive units fetch storage pods, bring them to pick stations and put them back, while running on batteries, wearing out, breaking down and getting repaired. It is written for people coming from analytics, operations research or software who want to learn fleet management by experiment. Also: **[classic live 3D simulator](https://zakcination.github.io/fleetsim/live.html)** · **[teaser](docs/media/teaser.mp4)**
 
 ![50 robots on the LoRR warehouse crop](docs/fleet.gif)
 
@@ -111,6 +121,8 @@ Each run writes four tables to SQLite (`results/fleetsim.db`) and Parquet (`resu
 |---|---|
 | Play with a fleet in the browser | [`web/live.html`](web/live.html) (hosted on [GitHub Pages](https://zakcination.github.io/fleetsim/)) |
 | Learn the concepts step by step | [`web/guide.html`](web/guide.html) |
+| Follow the six-level learning path with exercises | [`docs/LEARNING_PATH.md`](docs/LEARNING_PATH.md) |
+| Run or propose a trial | [`docs/trials/`](docs/trials/README.md) and its [template](docs/trials/TEMPLATE.md) |
 | Add a dispatch policy, a map or a query | [`docs/EXTENDING.md`](docs/EXTENDING.md) |
 | Pick a research or engineering task | [`docs/ROADMAP.md`](docs/ROADMAP.md): MAPF, warehouse ops, ROS 2 twin, perception, simulation method, web |
 | Send a pull request | [`CONTRIBUTING.md`](CONTRIBUTING.md) |

@@ -1,21 +1,19 @@
-# LinkedIn post draft
+# LinkedIn launch post (draft)
 
-> Draft for the author to edit and post. Every number comes from `fleetsim bench` (README results table).
+> Draft for the author to edit and post. Every number comes from `docs/trials/T1-allocation.md`.
 
 ---
 
-Two weeks, ~8 hours, $0 of hardware: v0.1 of **fleetsim**, a simulated Amazon-style fulfillment fleet.
+I model credit risk for a living. For the last few weeks I have been applying the same habit to robot fleets: don't believe a number until you have tried to break it.
 
-Robots fetch storage pods, carry them to pick stations and put them back. The warehouse is a real benchmark map from the League of Robot Runners. What's in v0.1:
+fleetsim is an open-source lab for warehouse robot fleets: who fetches which shelf, how a hundred robots share narrow aisles without colliding, and what happens when batteries run low and parts fail.
 
-🔹 Motion planning: space-time A* with prioritized planning and a reservation table. 0 collisions across 2.7 M robot-seconds, verified by an independent collision checker (which also runs in the CI test suite).
-🔹 Task allocation: greedy nearest-robot vs Hungarian assignment (scipy linear_sum_assignment) re-solved every 5 s. Under a backlog, Hungarian completes +16-20% more tasks per hour (1,619 -> 1,892 tasks/h with 100 robots) and halves the queue. Without a backlog the two are the same, and part of the gain probably comes from *which* order gets picked, not just optimal matching. That's the next experiment.
-🔹 Analytics: every robot-second logged to SQLite/Parquet, KPIs in plain SQL (throughput, utilization, congestion delay, censored order wait, planner runtime). Same toolkit I use in bank credit-risk work, applied to a fleet.
+The first result surprised me. The textbook-optimal assignment method (Hungarian) beat simple first-come-first-served dispatch by about 15%. Before celebrating, I wrote down a hypothesis and a pass bar, then ran 300 simulations. A one-line "closest pair first" rule matched it, at 100.5–101% of its throughput. The gain came from which orders get served first, not from optimal matching. One of my three predictions failed, and it's in the write-up.
 
-Next: port the planner to C++ and wrap it in ROS 2 Jazzy nodes, then Gazebo/Isaac visualisation, a perception pick station and learned dispatch policies.
+You can start with one robot in the browser and grow a fleet from there: https://zakcination.github.io/fleetsim/academy.html
 
-Built with AI coding agents (Claude Code); the README logs which parts.
+Code, trials and a learning path for people coming from analytics: https://github.com/zakcination/fleetsim
 
-Code: https://github.com/zakcination/fleetsim
+Built with AI coding agents; the experiment design and the verification are the parts I care about most.
 
-#robotics #MAPF #operationsresearch #ROS2 #python #warehouseautomation
+#robotics #operationsresearch #simulation #analytics #opensource

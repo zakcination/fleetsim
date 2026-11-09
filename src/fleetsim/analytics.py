@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .checker import find_conflicts
-from .sim import BUSY_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
+from .sim import BLOCKED, BUSY_STATES, CHARGING, DOWN_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
 
 
 def run_id_of(res: SimResult) -> str:
@@ -59,7 +59,16 @@ def to_frames(res: SimResult, run_id: str | None = None) -> dict[str, pd.DataFra
     runs = pd.DataFrame([{**cfg, "run_id": run_id, "rate_per_tick": res.rate, "wall_s": res.wall_s,
                           "n_free_cells": res.grid.n_free, "n_pods": len(res.grid.pods),
                           "n_stations": len(res.grid.stations)}])
-    return {"runs": runs, "ticks": ticks, "orders": orders, "plans": plans}
+    frames = {"runs": runs, "ticks": ticks, "orders": orders, "plans": plans}
+    if res.soc is not None:
+        ticks["soc"] = res.soc.ravel()
+    if res.motor_temp is not None:
+        ticks["motor_temp"] = res.motor_temp.ravel()
+    if res.jobs:
+        jobs = pd.DataFrame(res.jobs).drop(columns=["status"])
+        jobs.insert(0, "run_id", run_id)
+        frames["jobs"] = jobs
+    return frames
 
 
 def write_sqlite(frames: dict[str, pd.DataFrame], db_path: str | Path) -> None:
@@ -120,6 +129,10 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
         "allocator": allocator_label(cfg),
         "aging": cfg.aging if cfg.allocator == "hungarian_aging" else float("nan"),
         "seed": cfg.seed,
+        "faults": cfg.faults,
+        "techs": cfg.techs if cfg.health_on else float("nan"),
+        "maintenance": cfg.maintenance,
+        "battery": cfg.battery,
         "load": cfg.load,
         "orders_per_h": res.rate * 3600,
         "throughput_per_h": len(completed) / hours,
@@ -139,6 +152,34 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
         "plan_fail_rate": float(np.mean([not p["ok"] for p in plans])) if plans else 0.0,
         "wall_s": res.wall_s,
     }
+    if cfg.health_on:
+        out.update(health_kpis(res))
     if check_collisions:
         out["collisions"] = len(find_conflicts(res.traj, res.grid))
+    return out
+
+
+def health_kpis(res: SimResult) -> dict:
+    """Availability, MTBF, MTTR and battery KPIs over the measured window."""
+    cfg = res.config
+    T, w0 = res.total_ticks, cfg.warmup
+    S = res.state[w0:]
+    up = ~np.isin(S, DOWN_STATES)
+    fails = [j for j in res.jobs if j["kind"] == "failure" and w0 <= j["created"] < T]
+    services = [j for j in res.jobs if j["kind"] == "service" and w0 <= j["created"] < T]
+    repaired = [j for j in res.jobs if j["kind"] == "failure" and j["end"] is not None and w0 <= j["end"] < T]
+    up_hours = float(up.sum()) / 3600
+    out = {
+        "availability": float(up.mean()),
+        "failures": len(fails),
+        "services": len(services),
+        "mtbf_h": up_hours / len(fails) if fails else float("nan"),
+        "mttr_s": float(np.mean([j["end"] - j["created"] for j in repaired])) if repaired else float("nan"),
+        "repair_wait_s": float(np.mean([j["arrive"] - j["created"] for j in repaired])) if repaired else float("nan"),
+        "blocked_share": float((S == BLOCKED).mean()),
+        "charging_share": float((S == CHARGING).mean()),
+    }
+    if res.soc is not None:
+        out["soc_min"] = float(res.soc[w0:].min())
+        out["soc_mean"] = float(res.soc[w0:].mean())
     return out

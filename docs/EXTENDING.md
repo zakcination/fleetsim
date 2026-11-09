@@ -77,6 +77,24 @@ duckdb.sql("""
 """).show()
 ```
 
-## 4. The web demo
+## 4. Health, faults and maintenance
+
+Everything is off by default, and then results are bit-identical to v0.1. Switch parts on through `SimConfig`:
+
+```python
+from fleetsim import SimConfig, run
+from fleetsim.analytics import summarize
+
+cfg = SimConfig(n_robots=50, allocator="nearest", load=1.0,
+                battery=True, chargers=4, charge_at=25,        # batteries and chargers
+                faults=4, techs=2, initial_wear=0.6,           # fault rate x4 (normal), aged fleet
+                maintenance="condition", service_wear=0.5)     # or "none" / "interval"
+k = summarize(run(cfg))
+print(k["availability"], k["failures"], k["mttr_s"], k["repair_wait_s"])
+```
+
+The rates live in [`src/fleetsim/health.py`](../src/fleetsim/health.py). A new maintenance policy is a few lines in `Fleet._health_tick`: set `r.want_service = True`, and the robot finishes its job, drives home and is serviced there. The fault model draws one uniform number per robot per tick from its own stream, so policy arms with the same seed see the same faults.
+
+## 5. The web demo
 
 [`web/live.html`](../web/live.html) is a single self-contained file: the map, the planner, the policies and the three.js renderer are all inline. Open it in a browser, edit, reload. Dispatch policies live in `Sim.allocate`, KPIs in `Sim.kpis`, and the advice panel in `insights()`.

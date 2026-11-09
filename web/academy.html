@@ -207,6 +207,7 @@ td.best { color: var(--good); font-weight: 700; }
       <span><i class="sw" style="background:var(--bad)"></i>failed</span>
       <span><i class="sw" style="background:var(--repair)"></i>repair</span>
       <span><i class="sw" style="background:var(--stuck)"></i>blocked</span>
+      <span><i class="sw" style="background:var(--repair);border-radius:50%"></i>technician + corridor</span>
     </div>
   </div>
 
@@ -286,7 +287,7 @@ td.best { color: var(--good); font-weight: 700; }
     <div class="knob"><label class="name" for="k-thr"><span>Charge below</span><span class="val" id="k-thr-val">25%</span></label><input type="range" id="k-thr" min="10" max="50" step="5" value="25"></div>
     <div class="knob"><span class="name eyebrow" style="display:block;margin-bottom:0.3rem">Faults</span>
       <div class="seg" role="group" aria-label="Fault rate"><button type="button" data-fault="0" aria-pressed="true">Off</button><button type="button" data-fault="1" aria-pressed="false">Rare</button><button type="button" data-fault="4" aria-pressed="false">Normal</button><button type="button" data-fault="12" aria-pressed="false">Frequent</button></div>
-      <p class="why">Worn parts fail more often. A failed robot stops where it is and blocks the aisle until a technician fixes it.</p></div>
+      <p class="why">Worn parts fail more often. A failed robot stops where it is and blocks the aisle until a technician fixes it. Technicians walk on corridors that robots keep clear.</p></div>
     <div class="knob"><label class="name" for="k-tech"><span>Technicians</span><span class="val" id="k-tech-val">1</span></label><input type="range" id="k-tech" min="1" max="5" step="1" value="1"></div>
   </div>
 </section>
@@ -298,7 +299,7 @@ td.best { color: var(--good); font-weight: 700; }
 </section>
 
 <section class="about">
-  <p>Same core as the fleetsim Python package: the League of Robot Runners warehouse crop (72 × 99 cells, 2,920 pod slots, 19 stations), Poisson orders, full-errand space-time A* with a reservation table, three dispatch policies. The health model (battery drain, motor heat and wear, lift cycles, lidar and encoder faults, technicians) is a teaching model with made-up but plausible rates, not data from a real fleet. One tick = one second.</p>
+  <p>Same core as the fleetsim Python package: the League of Robot Runners warehouse crop (72 × 99 cells, 2,920 pod slots, 19 stations), Poisson orders, full-errand space-time A* with a reservation table, three dispatch policies. The health model (battery drain, motor heat and wear, lift cycles, lidar and encoder faults, technicians on priority corridors) is a teaching model with made-up but plausible rates, not data from a real fleet. One tick = one second.</p>
   <p>Map © The League of Robot Runners (MIT). <a href="guide.html">Field guide</a> · <a href="live.html">Classic live sim</a> · <a href="index.html">Project home</a> · <a href="https://github.com/zakcination/fleetsim">Source on GitHub</a></p>
 </section>
 
@@ -330,7 +331,17 @@ const EMIT = FREE_CELLS.filter((i) => CH(i) === "E");
 const minCol = Math.min(...EMIT.map((e) => e % W));
 const STATIONS = EMIT.filter((e) => e % W === minCol).sort((a, b) => a - b);
 const CHARGERS = [10, 22, 34, 46, 58, 70, 82, 94].map((c) => 3 * W + c).filter((i) => FREE[i]);
-const TECH_BASE = 4 * W + 2;
+// Technician room: a dead-end pocket in the top-left corner that robots may never enter.
+const TECH_ROOM = []; for (let r = 0; r <= 2; r++) for (let c = 4; c <= 7; c++) if (FREE[r * W + c]) TECH_ROOM.push(r * W + c);
+const TECH_BASES = [4, 5, 6, 7, W + 4];
+const TECH_DOOR = [3 * W + 4, 3 * W + 5, 3 * W + 6, 3 * W + 7];
+const TECH_AGENT = 1000;
+function bfsPath(src, dst, blocked) { // shortest walking route for a technician around blocked cells
+  if (src === dst) return [src];
+  const prev = new Int32Array(NC).fill(-2); prev[src] = -1; const q = [src];
+  for (let h = 0; h < q.length; h++) { const u = q[h]; for (const v of NB[u]) { if (prev[v] !== -2 || blocked.has(v)) continue; prev[v] = u; if (v === dst) { const p = [v]; let c = u; while (c !== -1) { p.push(c); c = prev[c]; } return p.reverse(); } q.push(v); } }
+  return null;
+}
 const UNR = 1 << 30;
 const cellRC = (i) => [(i / W) | 0, i % W];
 
@@ -360,6 +371,7 @@ function chooseParking(n) {
   const stationSet = new Set(STATIONS), avoid = new Set();
   STATIONS.forEach((s) => NB[s].forEach((v) => avoid.add(v)));
   CHARGERS.forEach((c) => { avoid.add(c); NB[c].forEach((v) => avoid.add(v)); });
+  TECH_ROOM.forEach((c) => avoid.add(c)); TECH_DOOR.forEach((c) => avoid.add(c));
   const c0 = FREE_CELLS.filter((i) => CH(i) === "." && !avoid.has(i) && !stationSet.has(i) && NB[i].length >= 3);
   const cands = c0.filter((_, k) => k % 2 === 0).concat(c0.filter((_, k) => k % 2 === 1));
   const blocked = new Uint8Array(NC), chosen = []; const probe = STATIONS[0]; const nFree = FREE_CELLS.length;
@@ -403,7 +415,7 @@ class RT {
     if (p && p.a === a) this.park.delete(end);
     return o;
   }
-  free(c, t, a) { const o = this.v.get(t * K + c); if (o !== undefined && o !== a) return false; const p = this.park.get(c); return !p || p.a === a || t < p.from; }
+  free(c, t, a) { if (a < TECH_AGENT && this.forbid && this.forbid.has(c)) return false; const o = this.v.get(t * K + c); if (o !== undefined && o !== a) return false; const p = this.park.get(c); return !p || p.a === a || t < p.from; }
   move(x, y, t, a) { const o = this.e.get((t * K + y) * K + x); return o === undefined || o === a; }
   lastUse(c, a) { const p = this.park.get(c); if (p && p.a !== a) return Infinity; const m = this.last.get(c); if (!m) return -1; let b = -1; m.forEach((t, who) => { if (who !== a && t > b) b = t; }); return b; }
   prune(now) {
@@ -507,7 +519,7 @@ class Sim {
     const c = this.cfg;
     this.t = 0; this.rng = mulberry32(12345 + c.n); this.frng = mulberry32(777 + c.n);
     this.homes = chooseParking(c.n);
-    this.rt = new RT(); this.planner = c.planner;
+    this.rt = new RT(); this.rt.forbid = new Set(TECH_ROOM); this.planner = c.planner; this.yields = 0; this.techDepth = 0;
     this.robots = this.homes.map((h, i) => ({
       id: i, home: h, t0: 0, path: [h], st: new Uint8Array([IDLE]), legs: null, arr: null, order: null,
       frozen: null, resume: null, failed: false, stuck: false, job: null, wantService: false, kind: "idle",
@@ -516,14 +528,77 @@ class Sim {
     this.robots.forEach((r) => this.rt.reserve(r.id, 0, r.path));
     this.pending = []; this.nextId = 0; this.done = new Map();
     this.ring = []; this.sum = this.zero(); this.series = []; this.collisions = 0; this.hit = new Set();
-    this.totalDone = 0; this.jobs = []; this.nextJob = 1; this.failures = 0; this.repairsDone = 0; this.events = [];
+    this.stopQueue = []; this.totalDone = 0; this.jobs = []; this.nextJob = 1; this.failures = 0; this.repairsDone = 0; this.events = [];
     this.techs = []; this.syncTechs();
     this.refreshDemand();
   }
   zero() { return { done: 0, busy: 0, travel: 0, waiting: 0, svc: 0, ms: 0, calls: 0, fails: 0, conf: 0, wsum: 0, wn: 0, dsum: 0, dn: 0, ticks: 0, avail: 0, rfail: 0, rep: 0, repSum: 0, socMin: 100, charging: 0 }; }
+  techPos(tech, t) { return tech.path[Math.max(0, Math.min(tech.path.length - 1, t - tech.t0))]; }
   syncTechs() {
-    while (this.techs.length < this.cfg.techs) this.techs.push({ id: this.techs.length, cell: TECH_BASE, job: null, path: [TECH_BASE], depart: 0 });
-    while (this.techs.length > this.cfg.techs) { const i = this.techs.findIndex((x) => !x.job); if (i < 0) break; this.techs.splice(i, 1); }
+    while (this.techs.length < this.cfg.techs) {
+      const used = new Set(this.techs.map((x) => x.base)), base = TECH_BASES.find((b) => !used.has(b)), id = TECH_BASES.indexOf(base);
+      const tech = { id, agent: TECH_AGENT + id, base, t0: this.t, path: [base], job: null, dirty: false };
+      this.rt.reserve(tech.agent, this.t, [base]); this.techs.push(tech);
+    }
+    while (this.techs.length > this.cfg.techs) {
+      const i = this.techs.findIndex((x) => !x.job && this.techPos(x, this.t) === x.base && this.t - x.t0 >= x.path.length - 1); if (i < 0) break;
+      this.rt.release(this.techs[i].agent); this.techs.splice(i, 1);
+    }
+  }
+  // ---- technicians walk on reserved, priority corridors: robots reroute or wait, never the technician
+  techObstacles(tech, t) {
+    const obs = new Set();
+    this.rt.park.forEach((p, cell) => { if (p.a !== tech.agent && p.from <= t) obs.add(cell); });
+    for (const r of this.robots) { const p = this.pos(r, t); if (r.frozen !== null || p === this.pos(r, t + 6)) obs.add(p); } // stopped or dwelling robots
+    for (const o of this.techs) if (o !== tech) for (let k = Math.max(0, t - o.t0); k < o.path.length; k++) obs.add(o.path[k]);
+    return obs;
+  }
+  planTech(tech, t) { // route for the technician's current duty: go + repair + return, or just return
+    const cur = this.techPos(tech, t), obs = this.techObstacles(tech, t); obs.delete(cur); obs.delete(tech.base);
+    let job = tech.job, full = null;
+    if (job && job.status === "en route") {
+      const rc = this.pos(this.robots[job.robot], t); let best = null;
+      for (const sCell of NB[rc]) { if (obs.has(sCell)) continue; const pth = bfsPath(cur, sCell, obs); if (pth && (!best || pth.length < best.length)) best = pth; }
+      const stand = best && best[best.length - 1], back = best && bfsPath(stand, tech.base, obs);
+      if (best && back) { job.arrive = t + best.length - 1; full = best.concat(new Array(REPAIR_S[job.comp]).fill(stand), back.slice(1)); }
+      else { job.status = "waiting"; job.tech = null; job.retryAt = t + 5; tech.job = null; job = null; }
+    }
+    if (!full && job && job.status === "repairing") { const back = bfsPath(cur, tech.base, obs); full = new Array(Math.max(0, job.end - t)).fill(cur).concat(back || [cur]); if (!back) tech.dirtyLater = true; }
+    if (!full) { const back = bfsPath(cur, tech.base, obs); full = back || [cur]; if (!back) tech.dirtyLater = true; }
+    this.claimTech(tech, t, full);
+    if (tech.dirtyLater) { tech.dirty = true; tech.dirtyLater = false; }
+    return !!tech.job || !job;
+  }
+  claimTech(tech, t, full) { // book the corridor; every robot whose route crosses it replans or stops
+    tech.t0 = t; tech.path = full; tech.dirty = false;
+    if (this.planner !== "pp") return;
+    this.rt.release(tech.agent);
+    const end = full.length - 1, hit = [];
+    for (const j of this.robots) {
+      if (j.frozen !== null) continue;
+      let bad = false; const last = j.path.length - 1;
+      for (let kk = Math.max(0, t - j.t0); kk <= last && !bad; kk++) {
+        const dt = j.t0 + kk - t, idx = Math.min(dt, end);
+        if (full[idx] === j.path[kk]) bad = true;
+        else if (kk > 0 && dt >= 1 && dt <= end && full[dt] === j.path[kk - 1] && full[dt - 1] === j.path[kk]) bad = true;
+      }
+      if (!bad) { const f = j.path[last]; for (let idx = Math.max(0, j.t0 + last - t); idx <= end && !bad; idx++) if (full[idx] === f) bad = true; }
+      if (bad) hit.push([j, this.remaining(j, t)]);
+    }
+    for (const [j] of hit) this.rt.release(j.id);
+    this.rt.reserve(tech.agent, t, full);
+    for (const [j, legs] of hit) {
+      this.yields++;
+      if (this.tryPlan(j, t, legs, false).ok) this.note(j, t, "Rerouted: a technician's corridor has priority");
+      else { j.resume = legs; j.stuck = true; this.freeze(j, t, STUCK); this.note(j, t, "Stopped to keep a technician's corridor clear"); this.stopQueue.push(j.id); }
+    }
+    this.resolve(t, []);
+  }
+  fixTechs(t) { // a robot stopped on a booked corridor: the technician walks around it
+    if (this.techDepth > 5) return;
+    this.techDepth++;
+    for (const tech of this.techs) if (tech.dirty) { tech.dirty = false; this.planTech(tech, t); }
+    this.techDepth--;
   }
   refreshDemand() {
     const c = this.cfg, k = c.stations, S = STATIONS.length;
@@ -565,11 +640,20 @@ class Sim {
       if (i >= 0) { const comp = t + res.arr[i] + legs[i].dwell; r.order.compT = comp; const l = this.done.get(comp) || []; l.push({ o: r.order, r: r.id }); this.done.set(comp, l); }
     }
   }
-  tryPlan(r, t, legs) { // returns true if r now follows a new plan from t
+  reachable(r, start, t, legs) { // cheap test: are the goals cut off by stopped robots or a technician at work? then wait and retry
+    const blk = this._blk || (this._blk = new Uint8Array(NC)); blk.fill(0); let any = false;
+    for (const j of this.robots) if (j !== r && j.frozen !== null) { blk[this.pos(j, t)] = 1; any = true; }
+    for (const tech of this.techs) if (tech.job && tech.job.status === "repairing") { blk[this.techPos(tech, t)] = 1; any = true; }
+    if (!any) return true;
+    blk[start] = 0; const d = bfsRaw(start, blk);
+    for (const L of legs) if (d[L.goal] >= UNR) return false;
+    return d[r.home] < UNR;
+  }
+  tryPlan(r, t, legs, restore = true) { // plans legs then home; on failure keeps the old plan unless restore is false
     const start = this.pos(r, t);
     let old = null; if (this.planner === "pp") old = this.rt.release(r.id);
-    const t0 = performance.now(); const res = this.planLegs(r.id, start, t, legs, r.home); const ms = performance.now() - t0;
-    if (!res) { if (old) this.rt.reserve(r.id, old.t0, old.path); return { ok: false, ms }; }
+    const t0 = performance.now(); const res = (this.planner === "pp" && !this.reachable(r, start, t, legs)) ? null : this.planLegs(r.id, start, t, legs, r.home); const ms = performance.now() - t0;
+    if (!res) { if (old && restore) this.rt.reserve(r.id, old.t0, old.path); return { ok: false, ms }; }
     if (this.planner === "pp") this.rt.reserve(r.id, t, res.path);
     this.commit(r, t, res, legs); return { ok: true, ms };
   }
@@ -579,15 +663,24 @@ class Sim {
     return out;
   }
   freeze(r, t, state) {
-    const p = this.pos(r, t);
-    if (this.planner === "pp") { this.rt.release(r.id); this.rt.reserve(r.id, t, [p]); }
+    const p = this.pos(r, t); let ev = null, evLegs = null;
+    if (this.planner === "pp") {
+      this.rt.release(r.id);
+      // the cell may be booked as another robot's future parking spot: the stopped robot takes it
+      const h = this.rt.park.get(p);
+      if (h && h.a !== r.id && h.a < TECH_AGENT) { ev = this.robots[h.a]; evLegs = this.remaining(ev, t); this.rt.release(ev.id); }
+      this.rt.reserve(r.id, t, [p]);
+    }
     r.t0 = t; r.path = [p]; r.st = new Uint8Array([state]); r.legs = null; r.arr = null; r.frozen = state;
     if (r.order) this.removeDone(r.order);
+    if (ev && !this.tryPlan(ev, t, evLegs, false).ok) { ev.resume = evLegs; ev.stuck = true; this.freeze(ev, t, STUCK); this.note(ev, t, "Home cell taken by a stopped robot: waiting"); this.stopQueue.push(ev.id); }
+    for (const tech of this.techs) for (let k = Math.max(0, t + 1 - tech.t0); k < tech.path.length; k++) if (tech.path[k] === p) { tech.dirty = true; break; }
   }
   resolve(t, ids) { // keep everyone collision-free after robots stop unexpectedly
     if (this.planner !== "pp") return;
     const queue = ids.slice();
-    while (queue.length) {
+    while (queue.length || this.stopQueue.length) {
+      if (this.stopQueue.length) queue.push(...this.stopQueue.splice(0));
       const f = this.robots[queue.pop()], c = this.pos(f, t);
       for (const j of this.robots) {
         if (j === f || j.frozen !== null) continue;
@@ -595,9 +688,10 @@ class Sim {
         for (let k = k0; !hits && k < j.path.length; k++) if (j.path[k] === c) hits = true;
         if (!hits) continue;
         const legs = this.remaining(j, t);
-        if (!this.tryPlan(j, t, legs).ok) { j.resume = legs; j.stuck = true; this.freeze(j, t, STUCK); this.note(j, t, "Route blocked by a stopped robot: safety stop"); queue.push(j.id); }
+        if (!this.tryPlan(j, t, legs, false).ok) { j.resume = legs; j.stuck = true; this.freeze(j, t, STUCK); this.note(j, t, "Route blocked by a stopped robot: safety stop"); queue.push(j.id); }
       }
     }
+    this.fixTechs(t);
   }
   fail(r, t, comp) {
     if (r.failed) return;
@@ -625,26 +719,17 @@ class Sim {
     r.failed = false; r.job = null; r.frozen = null; this.repairsDone++;
     this.note(r, t, `Repaired: ${COMP_NAME[c]} (job #${job.id}, ${Math.round((t - job.created) / 60)} min)`);
     const legs = r.resume || []; r.resume = null;
-    if (!this.tryPlan(r, t, legs).ok) { r.resume = legs; r.stuck = true; this.freeze(r, t, STUCK); }
+    if (!this.tryPlan(r, t, legs).ok) { r.resume = legs; r.stuck = true; this.freeze(r, t, STUCK); this.resolve(t, []); }
   }
   scheduleService(r, t) {
     r.wantService = true; this.note(r, t, "Service requested: robot will stop at home after its current job");
   }
   stepTechs(t, rec) {
     this.syncTechs();
-    const waiting = this.jobs.filter((j) => j.status === "waiting").sort((a, b) => (b.priority - a.priority) || (a.created - b.created));
     for (const tech of this.techs) {
-      if (!tech.job && waiting.length) {
-        const job = waiting.shift(), robot = this.robots[job.robot];
-        const target = this.pos(robot, t);
-        tech.job = job; job.tech = tech.id; job.status = "en route";
-        tech.path = shortestPath(tech.cell, target) || [tech.cell, target]; tech.depart = t;
-        job.arrive = t + tech.path.length - 1;
-      }
       const job = tech.job; if (!job) continue;
       if (job.status === "en route" && t >= job.arrive) {
         job.status = "repairing"; job.start = t; job.end = t + REPAIR_S[job.comp];
-        tech.cell = tech.path[tech.path.length - 1];
         const r = this.robots[job.robot]; r.frozen = REPAIR; r.st = new Uint8Array([REPAIR]);
         this.note(r, t, `Technician ${tech.id + 1} arrived; ${COMP_NAME[job.comp]} repair takes ${Math.round(REPAIR_S[job.comp] / 60)} min`);
       }
@@ -652,6 +737,13 @@ class Sim {
         job.status = "done"; tech.job = null; rec.rep++; rec.repSum += t - job.created;
         this.finishRepair(this.robots[job.robot], t, job);
       }
+    }
+    const waiting = this.jobs.filter((j) => j.status === "waiting" && (j.retryAt || 0) <= t).sort((a, b) => (b.priority - a.priority) || (a.created - b.created));
+    for (const tech of this.techs) {
+      if (!tech.job && waiting.length) { // next job straight from where the technician stands
+        const job = waiting.shift(); tech.job = job; job.tech = tech.id; job.status = "en route";
+        this.planTech(tech, t);
+      } else if (tech.dirty && t % 4 === 0) this.planTech(tech, t);
     }
     if (this.jobs.length > 200) this.jobs = this.jobs.filter((j) => j.status !== "done" || t - j.end < 3600);
   }
@@ -684,7 +776,7 @@ class Sim {
   }
 
   allocate(free) {
-    const c = this.cfg, P = this.pending;
+    const c = this.cfg, P = this.pending.filter((o) => (o.retryAt || 0) <= this.t);
     if (!free.length || !P.length) return [];
     if (c.alloc === "fifo") {
       const used = new Uint8Array(free.length), out = [];
@@ -731,11 +823,15 @@ class Sim {
       if (s !== IDLE && s !== TO_HOME) continue;
       if (r.wantService && s === IDLE && p === r.home) { r.wantService = false; this.fail(r, t, "service"); continue; }
       if (c.battery && r.hp.soc < c.chargeAt && this.chargers.length) {
-        const ch = this.chargers.slice().sort((a, b) => distTo(a)[p] - distTo(b)[p])[0];
-        const need = Math.ceil((HEALTH.chargeTo - r.hp.soc + distTo(ch)[p] * HEALTH.drainMove) / (HEALTH.chargeRate * r.hp.batHealth / 100));
-        const legs = [{ goal: ch, dwell: Math.max(10, need), travel: TO_CHARGER, dwellSt: CHARGING, tag: "charge" }];
-        const res = this.tryPlan(r, t, legs); rec.ms += res.ms; rec.calls++;
-        if (res.ok) { r.order = null; this.note(r, t, `Battery ${Math.round(r.hp.soc)}%: going to charger`); } else rec.fails++;
+        if ((r.retryAt || 0) > t) continue;
+        let ok = false; // nearest charger first; if it is booked, try the next ones
+        for (const ch of this.chargers.slice().sort((a, b) => distTo(a)[p] - distTo(b)[p]).slice(0, 3)) {
+          const need = Math.ceil((HEALTH.chargeTo - r.hp.soc + distTo(ch)[p] * HEALTH.drainMove) / (HEALTH.chargeRate * r.hp.batHealth / 100));
+          const res = this.tryPlan(r, t, [{ goal: ch, dwell: Math.max(10, need), travel: TO_CHARGER, dwellSt: CHARGING, tag: "charge" }]); rec.ms += res.ms; rec.calls++;
+          if (res.ok) { ok = true; break; }
+          rec.fails++;
+        }
+        if (ok) { r.order = null; this.note(r, t, `Battery ${Math.round(r.hp.soc)}%: going to charger`); } else r.retryAt = t + 10;
         continue;
       }
       if (r.wantService) continue;
@@ -746,7 +842,7 @@ class Sim {
       const r = this.robots[rid], start = this.pos(r, t);
       const legs = orderLegs(o, c.service);
       r.order = o; const res = this.tryPlan(r, t, legs); rec.ms += res.ms; rec.calls++;
-      if (!res.ok) { r.order = null; rec.fails++; continue; }
+      if (!res.ok) { r.order = null; o.retryAt = t + 5; rec.fails++; continue; }
       o.assigned = t; o.robot = rid;
       o.ff = distTo(o.pod)[start] + LIFT_T + 2 * distTo(o.station)[o.pod] + c.service + DROP_T;
       rec.wsum += t - o.created; rec.wn++; taken.add(o.id);
@@ -767,6 +863,7 @@ class Sim {
       r.tel.soc[ti] = c.battery ? r.hp.soc : 100; r.tel.tl[ti] = r.hp.tempL; r.tel.tr[ti] = r.hp.tempR; r.tel.mv[ti] = np !== p ? 1 : 0;
       if (seen.has(p)) { rec.conf++; this.hit.add(r.id); this.hit.add(seen.get(p)); } else seen.set(p, r.id);
     }
+    for (const tech of this.techs) { const c = this.techPos(tech, t); if (seen.has(c)) { rec.conf++; this.hit.add(seen.get(c)); } }
     if (this.planner === "naive" && t > 0) {
       const prev = new Map(); for (const r of this.robots) { const a = this.pos(r, t - 1), b = this.pos(r, t); if (a !== b) prev.set(a + "," + b, r.id); }
       prev.forEach((id, key) => { const [a, b] = key.split(","); if (a < b && prev.has(b + "," + a)) { rec.conf++; this.hit.add(id); this.hit.add(prev.get(b + "," + a)); } });
@@ -834,7 +931,7 @@ const MISSIONS = [
       { text: "Add chargers until throughput recovers, then pin it", check: (s, ui) => s.cfg.chargers >= 3 && ui.pins.some((p) => p.battery && p.chargers >= 3) },
     ] },
   { id: "m6", title: "Breakdowns and repairs", setup: { n: 15, load: 0.8, battery: true, faults: 12, planner: "pp", alloc: "fifo", stations: 19, chargers: 3, techs: 1 }, speed: 5,
-    concept: "Parts wear out. A failed robot stops where it is, blocking the aisle, and waits for a technician. <b>MTBF</b> (mean time between failures) and <b>MTTR</b> (mean time to repair) set <b>availability</b> ≈ MTBF / (MTBF + MTTR).",
+    concept: "Parts wear out. A failed robot stops where it is, blocking the aisle, and waits for a technician. The technician walks out on a <b>booked corridor</b> (purple line) that robots must keep clear, repairs the robot from the next cell, and walks back to the technician room. <b>MTBF</b> (mean time between failures) and <b>MTTR</b> (mean time to repair) set <b>availability</b> ≈ MTBF / (MTBF + MTTR).",
     tasks: [
       { text: "Open a failed robot (red) and read its fault", check: (s, ui) => ui.inspectedFailed },
       { text: "Prioritise a repair job from the robot panel", check: (s, ui) => ui.prioritised },
@@ -951,7 +1048,7 @@ function renderTables() {
   }).join("") + "</tbody>";
   document.querySelectorAll("#robot-table [data-r]").forEach((tr) => { const go = () => selectRobot(+tr.dataset.r); tr.addEventListener("click", go); tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }); });
   const jobs = sim.jobs.filter((j) => j.status !== "done").concat(sim.jobs.filter((j) => j.status === "done").slice(-5).reverse());
-  $("tech-note").textContent = `${cfg.techs} technician${cfg.techs > 1 ? "s" : ""}`;
+  $("tech-note").textContent = `${cfg.techs} technician${cfg.techs > 1 ? "s" : ""} · ${sim.yields} robot reroutes for their corridors`;
   $("jobs-table").innerHTML = jobs.length ? `<thead><tr><th>Job</th><th>Robot</th><th>Part</th><th>Status</th><th class="n">Age</th></tr></thead><tbody>` + jobs.map((j) => `<tr class="click" data-r="${j.robot}"><td class="n">${j.id}${j.priority ? " ★" : ""}</td><td class="n">${j.robot + 1}</td><td>${esc(COMP_NAME[j.comp])}</td><td>${j.status}</td><td class="n">${fmtS((j.status === "done" ? j.end : sim.t) - j.created)}</td></tr>`).join("") + "</tbody>" : `<tbody><tr><td class="empty">No repair jobs. Turn on Faults in Health to see breakdowns.</td></tr></tbody>`;
   document.querySelectorAll("#jobs-table [data-r]").forEach((tr) => tr.addEventListener("click", () => selectRobot(+tr.dataset.r)));
 }
@@ -1094,7 +1191,9 @@ function init3D() {
   ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
   const pathGeo = new THREE.BufferGeometry(); pathGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 1200), 3));
   const pathLine = new THREE.Line(pathGeo, new THREE.LineBasicMaterial({ color: 0xd9680a })); pathLine.visible = false; scene.add(pathLine);
-  const t3 = { renderer, scene, camera, controls, tex, floorTex, shelfMat, stMat, chMat, robots, pods, techs, chargers, ring, pathLine, pathGeo, dummy, podMat: pods.material, camGoal: null };
+  const techLines = [];
+  for (let i = 0; i < 5; i++) { const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 500), 3)); const ln = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x8a4fbf })); ln.visible = false; ln.frustumCulled = false; scene.add(ln); techLines.push(ln); }
+  const t3 = { techLines, renderer, scene, camera, controls, tex, floorTex, shelfMat, stMat, chMat, robots, pods, techs, chargers, ring, pathLine, pathGeo, dummy, podMat: pods.material, camGoal: null };
   theme3D(t3); setCamera(t3, "iso");
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null;
   renderer.domElement.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
@@ -1114,7 +1213,7 @@ function theme3D(t3) {
   for (const st of STATIONS) { g.globalAlpha = sim.open.includes(st) ? 1 : 0.25; g.fillRect((st % W) * s, ((st / W) | 0) * s, s, s); }
   g.fillStyle = css("--charge");
   for (const ch of CHARGERS) { g.globalAlpha = sim.chargers.includes(ch) ? 0.9 : 0.15; g.fillRect((ch % W) * s, ((ch / W) | 0) * s, s, s); }
-  g.globalAlpha = 1; g.fillStyle = css("--repair"); g.fillRect((TECH_BASE % W) * s, ((TECH_BASE / W) | 0) * s, s, s);
+  g.fillStyle = css("--repair"); g.globalAlpha = 0.3; for (const c of TECH_ROOM) g.fillRect((c % W) * s, ((c / W) | 0) * s, s, s); g.globalAlpha = 1;
   g.strokeStyle = css("--line"); g.globalAlpha = 0.35; g.lineWidth = 1;
   for (let c = 0; c <= W; c++) { g.beginPath(); g.moveTo(c * s, 0); g.lineTo(c * s, H * s); g.stroke(); }
   for (let r = 0; r <= H; r++) { g.beginPath(); g.moveTo(0, r * s); g.lineTo(W * s, r * s); g.stroke(); }
@@ -1136,11 +1235,9 @@ const colorCache = new Map();
 function threeColor(v) { const k = v + css(v); let c = colorCache.get(k); if (!c) { c = new THREE.Color(css(v)); colorCache.set(k, c); } return c; }
 function robotXZ(r, T, frac) { const a = sim.pos(r, Math.max(0, T - 1)), b = sim.pos(r, T); const ax = a % W + 0.5, az = ((a / W) | 0) + 0.5, bx = b % W + 0.5, bz = ((b / W) | 0) + 0.5; return [ax + (bx - ax) * frac, az + (bz - az) * frac, a, b, ax, az, bx, bz]; }
 function techXZ(tech, frac) {
-  const job = tech.job; let cell = tech.cell, nxt = tech.cell;
-  if (job && job.status === "en route") { const k = Math.min(tech.path.length - 1, Math.max(0, sim.t - 1 - tech.depart)); cell = tech.path[k]; nxt = tech.path[Math.min(tech.path.length - 1, k + 1)]; }
-  const ax = cell % W + 0.5, az = ((cell / W) | 0) + 0.5, bx = nxt % W + 0.5, bz = ((nxt / W) | 0) + 0.5;
-  const off = job && job.status === "repairing" ? 0.6 : 0;
-  return [ax + (bx - ax) * frac + off, az + (bz - az) * frac];
+  const a = sim.techPos(tech, Math.max(0, sim.t - 1)), b = sim.techPos(tech, sim.t);
+  const ax = a % W + 0.5, az = ((a / W) | 0) + 0.5, bx = b % W + 0.5, bz = ((b / W) | 0) + 0.5;
+  return [ax + (bx - ax) * frac, az + (bz - az) * frac];
 }
 function draw3D(frac, now, dt) {
   const t3 = three, d = t3.dummy, T = sim.t; let n = 0;
@@ -1156,6 +1253,13 @@ function draw3D(frac, now, dt) {
   t3.robots.instanceMatrix.needsUpdate = true; if (t3.robots.instanceColor) t3.robots.instanceColor.needsUpdate = true; t3.pods.instanceMatrix.needsUpdate = true;
   let m = 0; for (const tech of sim.techs) { const [x, z] = techXZ(tech, frac); d.position.set(x, 0.75, z); d.scale.set(1, 1, 1); d.updateMatrix(); t3.techs.setMatrixAt(m++, d.matrix); }
   t3.techs.count = m; t3.techs.instanceMatrix.needsUpdate = true; t3.techs.material.color.set(css("--repair"));
+  t3.techLines.forEach((ln, i) => { // each technician's booked corridor
+    const tech = sim.techs[i], k0 = tech ? Math.max(0, T - tech.t0) : 0;
+    if (!tech || tech.path.length - k0 < 2) { ln.visible = false; return; }
+    const arr = ln.geometry.attributes.position.array; let q = 0, prevC = -1;
+    for (let k = k0; k < tech.path.length && q < arr.length - 3; k++) { const c = tech.path[k]; if (c === prevC) continue; prevC = c; arr[q++] = c % W + 0.5; arr[q++] = 0.1; arr[q++] = ((c / W) | 0) + 0.5; }
+    ln.geometry.setDrawRange(0, q / 3); ln.geometry.attributes.position.needsUpdate = true; ln.visible = q > 3; ln.material.color.set(css("--repair"));
+  });
   if (ui.selected !== null && sim.robots[ui.selected]) {
     const r = sim.robots[ui.selected], [x, z] = robotXZ(r, T, frac);
     t3.ring.visible = true; t3.ring.position.set(x, 0.03, z); t3.ring.material.color.set(css("--fg"));
@@ -1180,7 +1284,7 @@ function build2D() {
   for (let i = 0; i < NC; i++) { g.fillStyle = cols[CH(i)]; g.fillRect(ox + (i % W) * cell, oy + ((i / W) | 0) * cell, cell + 0.5, cell + 0.5); }
   for (const st of STATIONS) { g.globalAlpha = sim.open.includes(st) ? 1 : 0.25; g.fillStyle = css("--station"); g.fillRect(ox + (st % W) * cell, oy + ((st / W) | 0) * cell, cell, cell); }
   for (const ch of CHARGERS) { g.globalAlpha = sim.chargers.includes(ch) ? 1 : 0.15; g.fillStyle = css("--charge"); g.fillRect(ox + (ch % W) * cell, oy + ((ch / W) | 0) * cell, cell, cell); }
-  g.globalAlpha = 1; g.fillStyle = css("--repair"); g.fillRect(ox + (TECH_BASE % W) * cell, oy + ((TECH_BASE / W) | 0) * cell, cell, cell);
+  g.fillStyle = css("--repair"); g.globalAlpha = 0.3; for (const c of TECH_ROOM) g.fillRect(ox + (c % W) * cell, oy + ((c / W) | 0) * cell, cell + 0.5, cell + 0.5); g.globalAlpha = 1;
   bg2d = { off, cell, ox, oy, dpr, w, h };
 }
 function draw2D(frac, now) {
@@ -1200,7 +1304,10 @@ function draw2D(frac, now) {
     if (s >= LIFT && s <= DROP) { g.fillStyle = css("--podbox"); const q = Math.max(1.2, cell * 0.22); g.fillRect(px - q, py - q, 2 * q, 2 * q); }
     if (r.id === ui.selected) { g.strokeStyle = css("--fg"); g.lineWidth = 2; g.beginPath(); g.arc(px, py, Math.max(5, cell * 0.85), 0, Math.PI * 2); g.stroke(); }
   }
-  for (const tech of sim.techs) { const [x, z] = techXZ(tech, frac); const [px, py] = P(x, z); g.fillStyle = css("--repair"); g.fillRect(px - cell * 0.3, py - cell * 0.3, cell * 0.6, cell * 0.6); }
+  for (const tech of sim.techs) { // booked corridor, then the technician
+    const k0 = Math.max(0, T - tech.t0);
+    if (tech.path.length - k0 >= 2) { g.strokeStyle = css("--repair"); g.lineWidth = Math.max(1.5, cell * 0.2); g.setLineDash([cell * 0.5, cell * 0.35]); g.beginPath(); for (let k = k0; k < tech.path.length; k++) { const c = tech.path[k]; const [qx, qy] = P(c % W + 0.5, ((c / W) | 0) + 0.5); k === k0 ? g.moveTo(qx, qy) : g.lineTo(qx, qy); } g.stroke(); g.setLineDash([]); }
+    const [x, z] = techXZ(tech, frac); const [px, py] = P(x, z); g.fillStyle = css("--repair"); g.fillRect(px - cell * 0.3, py - cell * 0.3, cell * 0.6, cell * 0.6); }
 }
 $("c2d").addEventListener("click", (e) => {
   if (!bg2d) return; const rect = e.target.getBoundingClientRect(); const mx = e.clientX - rect.left, my = e.clientY - rect.top;
