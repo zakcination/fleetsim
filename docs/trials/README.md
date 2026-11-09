@@ -18,6 +18,7 @@ Every quantitative claim in this project comes from a trial in this folder. The 
 | [T3b](T3b-maintenance-no-battery.md) | The same, with batteries off (registered before T3's results were seen) | Done: 30 four-hour runs, 0 collisions | All three hypotheses hold by their bars, but the throughput gain over run-to-failure shrinks to 0.7%, and condition-based maintenance has **longer** order waits (118 s vs 19 s) because services share the technicians. What survives: 48% fewer failures, and a fixed interval is clearly worst. |
 | [T4](T4-technician-corridors.md) | What do protected technician corridors cost? | Done: 40 runs, 0 collisions, 0 robot–technician conflicts | Safety holds. Both cost predictions **failed** (1.1% at normal faults with the interval reaching 2.4%; 9.0% at frequent faults), traced to a technician base walled in by parked robots: a defect in the feature, not a cost of corridors. |
 | [T4b](T4b-technician-corridors-fixed-bases.md) | The same, after fixing base placement | Done: 40 runs, 0 collisions, 0 robot–technician conflicts | With correct bases the cost is within both bars: on / off throughput 1.003 [1.000, 1.006] at normal faults and 1.021 [0.967, 1.076] at frequent faults. The "better than T4 at both fault rates" prediction **failed** narrowly at normal faults. One run deadlocked: a technician cut off from base stopped taking jobs. |
+| [T4c](T4c-technician-corridors-no-deadlock.md) | The same, after the deadlock fix | Pre-registered, not yet run | |
 
 ## Run your own
 
