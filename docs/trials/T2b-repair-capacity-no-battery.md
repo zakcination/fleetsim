@@ -70,4 +70,4 @@ The number of failures also rises with technicians (35 → 47 per hour), because
 
 1. Size the repair crew from the offered repair load, as a call centre sizes agents: technicians needed ≈ failures/h × (walk + repair seconds) / 3,600, plus headroom. "Each technician buys back less" is only true once the crew exceeds that load.
 2. T2's headline about diminishing returns is withdrawn; its waiting-time finding stands.
-3. Two of this project's five trials so far had a hypothesis fail and one had a flawed design. All are reported.
+3. Of the four trials finished so far, two had a hypothesis fail (T1, T2b) and one had a flawed design (T2). All are reported.
