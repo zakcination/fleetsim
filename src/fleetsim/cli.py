@@ -26,32 +26,62 @@ def _cmd_run(a: argparse.Namespace) -> None:
             analytics.write_parquet(frames, a.parquet)
 
 
+def _bench_one(cfg: SimConfig) -> dict:
+    return analytics.summarize(run(cfg))
+
+
 def _cmd_bench(a: argparse.Namespace) -> None:
+    from multiprocessing import Pool
+
+    from . import stats
+
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    db = out / "fleetsim.db"
-    if db.exists():
-        db.unlink()
-    rows = []
+    cfgs = []
     for load in a.loads:
         for n in a.robots:
             for alloc in a.allocators:
-                cfg = SimConfig(n_robots=n, allocator=alloc, k=a.k, ticks=a.ticks, warmup=a.warmup,
-                                load=load, seed=a.seed)
-                res = run(cfg)
-                s = analytics.summarize(res)
-                rows.append(s)
-                print(f"{s['run_id']:>32}  {s['throughput_per_h']:7.0f} tasks/h  util {s['utilization']:.2f}  "
-                      f"wait {s['order_wait_s']:6.1f}s  plan {s['plan_ms_mean']:.1f}ms  "
-                      f"collisions {s['collisions']}  ({res.wall_s:.1f}s)", flush=True)
+                for aging in (a.aging if alloc == "hungarian_aging" else [a.aging[0]]):
+                    for rep in range(a.replications):
+                        cfgs.append(SimConfig(n_robots=n, allocator=alloc, k=a.k, aging=aging, ticks=a.ticks,
+                                              warmup=a.warmup, load=load, seed=a.seed + rep))
+    logs = not (a.no_db and a.no_parquet)
+    rows = []
+    if logs or a.workers <= 1:
+        db = out / "fleetsim.db"
+        if not a.no_db and db.exists():
+            db.unlink()
+        for cfg in cfgs:
+            res = run(cfg)
+            s = analytics.summarize(res)
+            rows.append(s)
+            print(f"{s['run_id']:>36}  {s['throughput_per_h']:7.0f} tasks/h  util {s['utilization']:.2f}  "
+                  f"wait {s['order_wait_s']:6.1f}s  plan {s['plan_ms_mean']:.1f}ms  "
+                  f"collisions {s['collisions']}  ({res.wall_s:.1f}s)", flush=True)
+            if logs:
                 frames = analytics.to_frames(res)
-                analytics.write_sqlite(frames, db)
+                if not a.no_db:
+                    analytics.write_sqlite(frames, db)
                 if not a.no_parquet:
                     analytics.write_parquet(frames, out / "parquet")
-    summary = pd.DataFrame(rows)
+    else:
+        with Pool(a.workers) as pool:
+            for i, s in enumerate(pool.imap(_bench_one, cfgs, chunksize=1), 1):
+                rows.append(s)
+                print(f"[{i}/{len(cfgs)}] {s['run_id']:>36}  {s['throughput_per_h']:7.0f} tasks/h  "
+                      f"p95 wait {s['order_wait_p95_s']:6.0f}s  collisions {s['collisions']}", flush=True)
+    runs = pd.DataFrame(rows)
+    runs.to_csv(out / "runs.csv", index=False)
+    if a.replications > 1:
+        summary = stats.aggregate(runs)
+        base = a.baseline or a.allocators[0]
+        base_label = analytics.allocator_label(SimConfig(allocator=base, k=a.k, aging=a.aging[0]))
+        stats.paired(runs, base_label).to_csv(out / "paired.csv", index=False)
+    else:
+        summary = runs
     summary.to_csv(out / "summary.csv", index=False)
     viz.benchmark_chart(summary, out / "benchmark.png")
-    print(f"wrote {out/'summary.csv'}, {out/'benchmark.png'}, {db}")
+    print(f"wrote {out}/runs.csv, summary.csv, benchmark.png" + (", paired.csv" if a.replications > 1 else ""))
 
 
 def _cmd_gif(a: argparse.Namespace) -> None:
@@ -85,8 +115,13 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--k", type=int, default=5)
     b.add_argument("--ticks", type=int, default=3600)
     b.add_argument("--warmup", type=int, default=600)
+    b.add_argument("--aging", type=float, nargs="+", default=[0.25], help="aging weights for hungarian_aging")
+    b.add_argument("--replications", type=int, default=1, help="seeds per design cell (common random numbers)")
+    b.add_argument("--baseline", help="allocator that paired.csv compares against (default: first)")
+    b.add_argument("--workers", type=int, default=4, help="parallel processes when no logs are written")
     b.add_argument("--seed", type=int, default=0)
     b.add_argument("--out", default="results")
+    b.add_argument("--no-db", action="store_true")
     b.add_argument("--no-parquet", action="store_true")
     b.set_defaults(func=_cmd_bench)
 

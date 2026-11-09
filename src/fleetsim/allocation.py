@@ -139,8 +139,33 @@ class HungarianAllocator:
         return [(robots[r][0], orders[c]) for r, c in zip(rows, cols) if cost[r, c] < BIG]
 
 
-def make_allocator(name: str, k: int = 5) -> Allocator:
+@register_allocator("hungarian_aging")
+class AgingHungarianAllocator(HungarianAllocator):
+    """Hungarian with an age bonus: cost = travel_s - aging * wait_s.
+
+    ``aging`` is the number of seconds of extra travel the policy accepts to serve
+    an order that has waited one second longer. 0 reproduces plain Hungarian;
+    larger values trade throughput for fairness (lower tail waits).
+    """
+
+    def __init__(self, k: int = 5, aging: float = 0.25, **kw) -> None:
+        super().__init__(k=k, **kw)
+        self.aging = aging
+        self.name = f"hungarian_aging_k{k}_a{aging:g}"
+
+    def assign(self, t, robots, pending, grid):
+        if t % self.k != 0 or not robots or not pending:
+            return []
+        window = max(self.min_window, int(self.window_factor * len(robots)))
+        orders = pending[:window]
+        travel = _cost_matrix(robots, orders, grid)
+        age = np.array([t - o.created for o in orders], dtype=float)
+        rows, cols = linear_sum_assignment(travel - self.aging * age[None, :])
+        return [(robots[r][0], orders[c]) for r, c in zip(rows, cols) if travel[r, c] < BIG]
+
+
+def make_allocator(name: str, k: int = 5, **params) -> Allocator:
     try:
-        return ALLOCATORS[name](k=k)
+        return ALLOCATORS[name](k=k, **params)
     except KeyError:
         raise ValueError(f"unknown allocator {name!r}; registered: {sorted(ALLOCATORS)}") from None

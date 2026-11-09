@@ -14,7 +14,8 @@ from .sim import BUSY_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
 
 def run_id_of(res: SimResult) -> str:
     c = res.config
-    return f"n{c.n_robots}_{c.allocator}_load{c.load:g}_s{c.seed}"
+    alloc = f"{c.allocator}{c.aging:g}" if c.allocator == "hungarian_aging" else c.allocator
+    return f"n{c.n_robots}_{alloc}_load{c.load:g}_s{c.seed}"
 
 
 def to_frames(res: SimResult, run_id: str | None = None) -> dict[str, pd.DataFrame]:
@@ -85,6 +86,14 @@ def write_parquet(frames: dict[str, pd.DataFrame], out_dir: str | Path) -> None:
         df.to_parquet(d / f"{run_id}.parquet", index=False)
 
 
+def allocator_label(cfg) -> str:
+    if cfg.allocator == "hungarian":
+        return f"hungarian(k={cfg.k})"
+    if cfg.allocator == "hungarian_aging":
+        return f"hungarian_aging(k={cfg.k},a={cfg.aging:g})"
+    return cfg.allocator
+
+
 def summarize(res: SimResult, check_collisions: bool = True) -> dict:
     """KPIs over the measured window [warmup, warmup + ticks)."""
     cfg = res.config
@@ -108,7 +117,9 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
     out = {
         "run_id": run_id_of(res),
         "n_robots": cfg.n_robots,
-        "allocator": f"hungarian(k={cfg.k})" if cfg.allocator == "hungarian" else cfg.allocator,
+        "allocator": allocator_label(cfg),
+        "aging": cfg.aging if cfg.allocator == "hungarian_aging" else float("nan"),
+        "seed": cfg.seed,
         "load": cfg.load,
         "orders_per_h": res.rate * 3600,
         "throughput_per_h": len(completed) / hours,
@@ -118,6 +129,8 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
         "congestion_delay_s": float(delay.mean()) if len(delay) else float("nan"),
         "order_wait_s": float(waits.mean()) if len(waits) else float("nan"),
         "order_wait_p95_s": float(np.percentile(waits, 95)) if len(waits) else float("nan"),
+        "order_wait_p99_s": float(np.percentile(waits, 99)) if len(waits) else float("nan"),
+        "order_wait_max_s": float(waits.max()) if len(waits) else float("nan"),
         "lead_time_p50_s": float(np.median(lead)) if len(lead) else float("nan"),
         "backlog_end": sum(1 for o in res.orders if o.assigned < 0),
         "plan_ms_mean": float(ms.mean()),
