@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fleetsim"
+version = "0.1.0"
+description = "Amazon-style fulfillment fleet: task allocation + MAPF + throughput analytics"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "matplotlib>=3.7",
+  "pandas>=2.0",
+  "pyarrow>=14",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "nbformat>=5.9", "nbconvert>=7.0", "ipykernel>=6.0"]
+
+[project.scripts]
+fleetsim = "fleetsim.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.package-data]
+fleetsim = ["maps/*.map", "maps/LICENSE.LoRR"]
