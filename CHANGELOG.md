@@ -17,6 +17,7 @@ The open-lab release: a fleet-health layer, replicated trials, and a browser Aca
 - Fleet health (off by default): batteries and chargers, motor heat and wear, lift cycles, faults that grow with wear, technicians, and maintenance policies `none`, `interval`, `condition`.
 - Failures keep the fleet collision-free: a stopped robot becomes an obstacle and affected robots replan their remaining legs or stop safely and retry.
 - Technician corridors (`tech_corridors=True`): technicians are priority agents in the reservation table. They walk out on a booked corridor, repair from the next cell, and walk back to a base robots may never enter.
+- Idle top-up (`idle_topup=True`): when no orders are waiting, idle robots below 90% charge go to a free charger and charge to full. An order or a low-battery robot cuts a top-up short. No trial yet: the numbers in the docs are single runs.
 - `fleetsim bench --replications N` with common random numbers, paired comparisons and confidence intervals.
 - New dispatch policies `nearest` and `hungarian_aging`, plus `@register_allocator` for your own.
 - New KPIs: availability, MTBF, MTTR, repair queue and walk times, tail order waits, corridor reroutes.
@@ -25,6 +26,10 @@ The open-lab release: a fleet-health layer, replicated trials, and a browser Aca
 
 - fleetsim Academy: eight missions from one robot to 100+, a close-up inspector for any robot (parts, battery, telemetry, repair job, history), and technicians on priority corridors.
 - Live 3D simulator, field guide and landing page on GitHub Pages.
+
+**Design notes**
+
+- [docs/INCIDENTS.md](docs/INCIDENTS.md): how power cuts, control outages, bad telemetry, delays and collisions will be modelled as scenarios with a response policy and a trial each. Not built yet.
 
 **Project**
 

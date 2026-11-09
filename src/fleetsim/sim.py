@@ -66,6 +66,8 @@ class SimConfig:
     service_interval: int = 5400  # interval policy: operating seconds between services
     service_wear: float = 0.5  # condition policy: service when any part's wear exceeds this
     tech_corridors: bool = False  # technicians walk on booked, priority corridors (see technicians.py)
+    idle_topup: bool = False  # robots with no order top up their battery instead of idling part-charged
+    topup_below: float = 90.0  # top up when idle below this charge; a top-up charges to 100%
 
     @property
     def health_on(self) -> bool:
@@ -96,6 +98,7 @@ class Robot:
     failed: bool = False
     blocked: bool = False
     want_service: bool = False
+    topup: bool = False  # on an idle top-up charge: may be interrupted by an order or a low-battery robot
     job: dict | None = None
     hp: H.Health | None = None
 
@@ -338,6 +341,36 @@ class Fleet:
         self._resolve(t)
 
     # ------------------------------------------------------------ health
+    def _topup_idle(self, t: int, idle: list[tuple[int, int]]) -> None:
+        """No orders are waiting: idle robots below ``topup_below`` go and charge to 100%.
+
+        Lowest battery first, one robot per charger that nobody is using or driving to, so a
+        full charger bank costs no route searches.
+        """
+        busy = {x.legs[0].goal for x in self.robots if x.legs and x.legs[0].tag == "charge" and x.state(t) in (TO_CHARGER, CHARGING)}
+        open_ = [c for c in self.chargers if c not in busy and c not in self.stopped_cells]
+        for rid, p in sorted(idle, key=lambda e: (self.robots[e[0]].hp.soc, e[0])):
+            if not open_:
+                return
+            r = self.robots[rid]
+            if r.topup or r.hp.soc >= self.cfg.topup_below or t < self.retry_at.get(rid, 0):
+                continue
+            ch = min(open_, key=lambda c: (self.grid.distance(p, c), c))
+            need = (100.0 - r.hp.soc + self.grid.distance(p, ch) * H.DRAIN_MOVE) / (H.CHARGE_RATE * r.hp.pack / 100)
+            if self._try_plan(r, t, [Leg(ch, max(10, int(np.ceil(need))), TO_CHARGER, CHARGING, "charge")]):
+                r.topup = True
+                open_.remove(ch)
+            else:
+                self.retry_at[rid] = t + 10
+
+    def _end_topup_at(self, charger: int, t: int) -> bool:
+        """A low-battery robot needs ``charger``: send a robot that is only topping up there home."""
+        for x in self.robots:
+            if x.topup and x.frozen is None and x.legs and x.legs[0].goal == charger and x.state(t) in (TO_CHARGER, CHARGING):
+                x.topup = False
+                return self._try_plan(x, t, [])
+        return False
+
     def _finish_repair(self, r: Robot, t: int, job: dict) -> None:
         """The technician is done: reset the part and send the robot back to its work."""
         r.hp.repair(job["component"])
@@ -409,8 +442,16 @@ class Fleet:
 
         free = []
         for r in self.robots:
-            if r.failed or r.blocked or r.state(t) not in (IDLE, TO_HOME):
+            if r.failed or r.blocked:
                 continue
+            s = r.state(t)
+            if r.topup and s in (TO_CHARGER, CHARGING):
+                if r.hp.soc >= cfg.charge_at:  # a top-up can be cut short by an order
+                    free.append((r.id, r.pos(t)))
+                continue
+            if s not in (IDLE, TO_HOME):
+                continue
+            r.topup = False
             p = r.pos(t)
             if r.want_service:
                 if r.state(t) == IDLE and p == r.home:
@@ -422,12 +463,13 @@ class Fleet:
                     ch = min(self.chargers, key=lambda c: (self.grid.distance(p, c), c))
                     need = (H.CHARGE_TO - r.hp.soc + self.grid.distance(p, ch) * H.DRAIN_MOVE) / (H.CHARGE_RATE * r.hp.pack / 100)
                     if not self._try_plan(r, t, [Leg(ch, max(10, int(np.ceil(need))), TO_CHARGER, CHARGING, "charge")]):
-                        self.retry_at[r.id] = t + 10  # charger busy for a long time: try again in 10 s
+                        # charger busy: a robot that is only topping up gives it up; otherwise retry in 10 s
+                        self.retry_at[r.id] = t + (1 if self._end_topup_at(ch, t) else 10)
                 continue
             free.append((r.id, p))
 
         pairs = self.allocator.assign(t, free, self.pending, self.grid)
-        assigned = set()
+        assigned, taken = set(), set()
         for rid, order in pairs:
             r = self.robots[rid]
             start = r.pos(t)
@@ -436,11 +478,15 @@ class Fleet:
                 r.order = None
                 continue
             order.assigned, order.robot = t, rid
+            r.topup = False
+            taken.add(rid)
             order.free_flow = (self.grid.distance(start, order.pod) + cfg.lift
                                + 2 * self.grid.distance(order.pod, order.station) + cfg.service + cfg.drop)
             assigned.add(order.id)
         if assigned:
             self.pending = [o for o in self.pending if o.id not in assigned]
+        if cfg.idle_topup and cfg.battery and self.chargers and not self.pending:
+            self._topup_idle(t, [(rid, p) for rid, p in free if rid not in taken])
 
         if cfg.health_on:
             self._health_tick(t, self.hrng.random(len(self.robots)))

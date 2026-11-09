@@ -185,3 +185,72 @@ def test_every_technician_base_has_a_real_way_out(grid):
             walls = (set(homes) | set(bases)) - {b}
             assert grid.bfs(b, walls)[grid.stations[0]] != UNREACHABLE
             assert not any(nb in homes for nb in grid.neighbors[b])
+
+
+def test_idle_topup_off_reproduces_t2_baseline_exactly(grid):
+    """The idle top-up switch must not change battery runs when it is off."""
+    row = pd.read_csv("results/T2-baseline/runs.csv").query("seed == 1").iloc[0]
+    s = analytics.summarize(run(SimConfig(n_robots=50, load=1.0, allocator="nearest", battery=True, faults=0, techs=2, initial_wear=0.6,
+                                          seed=1), grid=grid), check_collisions=False)
+    for k in ("throughput_per_h", "utilization", "order_wait_p95_s", "soc_min", "charging_share"):
+        assert s[k] == pytest.approx(row[k], abs=1e-9)
+
+
+def _part_charged_fleet(grid, soc, **kw):
+    f = Fleet(SimConfig(battery=True, load=0.0, ticks=1, warmup=0, **kw), grid)
+    for r, level in zip(f.robots, soc):
+        r.hp.soc = level
+    return f
+
+
+def test_idle_robots_top_up_to_full(grid):
+    f = _part_charged_fleet(grid, [60.0] * 6, n_robots=6, chargers=3, idle_topup=True)
+    rows, peak = [], [0.0] * 6
+    for t in range(1500):
+        f.step(t)
+        rows.append([r.pos(t) for r in f.robots])
+        peak = [max(p, r.hp.soc) for p, r in zip(peak, f.robots)]
+    assert find_conflicts(np.array(rows), grid) == []
+    assert min(peak) > 99.5  # every robot was charged to full
+    assert min(r.hp.soc for r in f.robots) > 90  # and has only lost the drive home and some idle time since
+    assert all(r.pos(1499) == r.home for r in f.robots)
+
+    g = _part_charged_fleet(grid, [60.0] * 6, n_robots=6, chargers=3)  # switch off: they idle part-charged
+    for t in range(1500):
+        g.step(t)
+    assert max(r.hp.soc for r in g.robots) < 60
+
+
+def test_an_order_cuts_a_top_up_short(grid):
+    from fleetsim.orders import Order
+    from fleetsim.sim import TO_POD
+
+    f = _part_charged_fleet(grid, [50.0], n_robots=1, chargers=1, idle_topup=True)
+    r, t = f.robots[0], 0
+    while r.state(t) != CHARGING:
+        f.step(t)
+        t += 1
+        assert t < 400
+    order = Order(id=0, pod=grid.pods[0], station=grid.stations[0], created=t)
+    f.pending.append(order)
+    f.orders.append(order)
+    f.step(t)
+    assert order.robot == 0 and r.state(t + 1) == TO_POD and not r.topup
+
+
+def test_a_low_battery_robot_takes_the_charger_from_a_top_up(grid):
+    f = _part_charged_fleet(grid, [60.0, 100.0], n_robots=2, chargers=1, idle_topup=True)
+    a, b, t = f.robots[0], f.robots[1], 0
+    while a.state(t) != CHARGING:
+        f.step(t)
+        t += 1
+        assert t < 400
+    b.hp.soc = 10.0  # below charge_at: this robot needs the charger, the other only wants it
+    rows = []
+    for t in range(t, t + 400):
+        f.step(t)
+        rows.append([r.pos(t) for r in f.robots])
+        if b.state(t) == CHARGING:
+            break
+    assert b.state(t) == CHARGING and a.hp.soc < 100 and not a.topup
+    assert find_conflicts(np.array(rows), grid) == []

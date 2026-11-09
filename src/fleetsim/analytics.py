@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .checker import find_conflicts, find_tech_conflicts
-from .sim import BLOCKED, BUSY_STATES, CHARGING, DOWN_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
+from .sim import BLOCKED, BUSY_STATES, CHARGING, IDLE, DOWN_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
 
 
 def run_id_of(res: SimResult) -> str:
@@ -18,7 +18,7 @@ def run_id_of(res: SimResult) -> str:
     health = ""
     if c.health_on:  # keep health arms apart; runs without health keep their v0.1 ids
         health = (f"_f{c.faults:g}_t{c.techs}_{c.maintenance}" + ("_bat" if c.battery else "")
-                  + ("_cor" if c.tech_corridors else ""))
+                  + ("_cor" if c.tech_corridors else "") + ("_top" if c.idle_topup else ""))
     return f"n{c.n_robots}_{alloc}_load{c.load:g}{health}_s{c.seed}"
 
 
@@ -138,6 +138,7 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
         "maintenance": cfg.maintenance,
         "battery": cfg.battery,
         "corridors": cfg.tech_corridors,
+        "idle_topup": cfg.idle_topup,
         "load": cfg.load,
         "orders_per_h": res.rate * 3600,
         "throughput_per_h": len(completed) / hours,
@@ -194,4 +195,8 @@ def health_kpis(res: SimResult) -> dict:
     if res.soc is not None:
         out["soc_min"] = float(res.soc[w0:].min())
         out["soc_mean"] = float(res.soc[w0:].mean())
+        idle = S == IDLE
+        out["idle_share"] = float(idle.mean())
+        out["idle_soc_mean"] = float(res.soc[w0:][idle].mean()) if idle.any() else float("nan")
+        out["idle_below_90_share"] = float((res.soc[w0:][idle] < 90).mean()) if idle.any() else float("nan")
     return out

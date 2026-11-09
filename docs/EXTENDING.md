@@ -95,6 +95,8 @@ print(k["availability"], k["failures"], k["mttr_s"], k["repair_wait_s"])
 
 Add `tech_corridors=True` and technicians become priority agents that walk on booked corridors: out to the robot, repair from the next cell, back to a base cell robots may not enter. `res.tech_traj` then holds their positions, and `fleetsim.checker.find_tech_conflicts(res.traj, res.tech_traj, res.grid)` checks that no robot ever shared a cell with one. The two crews live in [`src/fleetsim/technicians.py`](../src/fleetsim/technicians.py); a new crew needs `step`, `on_freeze` and `fix`.
 
+Add `idle_topup=True` (with `battery=True`) and a robot with no order no longer idles part-charged: when no orders are waiting, idle robots below `topup_below` (default 90%) drive to a free charger and charge to 100%, lowest battery first. A top-up is the lowest-priority use of a charger: a new order cuts it short (once the robot is above `charge_at`), and a robot that *needs* to charge takes the charger from one that is only topping up. How full the idle fleet gets is bounded by the number of chargers; `idle_soc_mean` and `idle_below_90_share` in the KPIs show it. CLI: `fleetsim run --battery --idle-topup`, `fleetsim bench --battery --idle-topup off on`.
+
 The rates live in [`src/fleetsim/health.py`](../src/fleetsim/health.py). A new maintenance policy is a few lines in `Fleet._health_tick`: set `r.want_service = True`, and the robot finishes its job, drives home and is serviced there. The fault model draws one uniform number per robot per tick from its own stream, so policy arms with the same seed see the same faults.
 
 ## 5. The web demo
