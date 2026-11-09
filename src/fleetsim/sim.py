@@ -20,7 +20,7 @@ import numpy as np
 
 from . import health as H
 from .allocation import make_allocator
-from .grid import DEFAULT_CROP, DEFAULT_MAP, Grid
+from .grid import DEFAULT_CROP, DEFAULT_MAP, UNREACHABLE, Grid
 from .orders import Order, OrderStream
 from .planner import ReservationTable, SearchStats, plan_errand
 
@@ -201,6 +201,10 @@ class Fleet:
         self.plans: list[dict] = []
         self.jobs: list[dict] = []
         self.retry_at: dict[int, int] = {}
+        self.stopped_cells: set[int] = set()  # cells held by failed / blocked robots
+        self.stop_version = 0
+        self._stop_queue: list[int] = []
+        self._reach_cache: dict[tuple[int, int], np.ndarray] = {}
 
     # ------------------------------------------------------------ planning
     def _commit(self, r: Robot, t: int, path: list[int], arr: list[int], legs: list[Leg]) -> None:
@@ -217,16 +221,37 @@ class Fleet:
             elif leg.tag == "drop":
                 o.completed = t + a + leg.dwell
 
-    def _try_plan(self, r: Robot, t: int, legs: list[Leg], order_id: int = -1, n_free: int = 0) -> bool:
+    def _reachable(self, start: int, goals: list[int]) -> bool:
+        """Cheap necessary condition: can ``start`` reach every goal around the stopped robots?
+
+        A stopped robot is a permanent obstacle for the planner, so if the goals are cut
+        off the space-time search is bound to fail; this skips it (same outcome, far cheaper).
+        """
+        if not self.stopped_cells:
+            return True
+        key = (start, self.stop_version)
+        dist = self._reach_cache.get(key)
+        if dist is None:
+            if len(self._reach_cache) > 256:
+                self._reach_cache.clear()
+            dist = self._reach_cache[key] = self.grid.bfs(start, blocked=self.stopped_cells - {start})
+        return all(dist[g] != UNREACHABLE for g in goals)
+
+    def _try_plan(self, r: Robot, t: int, legs: list[Leg], order_id: int = -1, n_free: int = 0,
+                  restore: bool = True) -> bool:
+        """Plan ``legs`` then home for ``r`` from tick ``t``. On failure the old plan is kept
+        (``restore=True``) or the robot is left without a reservation for the caller to freeze."""
         start = r.pos(t)
         old = self.rt.release(r.id)
         stats = SearchStats()
         c0 = time.perf_counter()
-        res = plan_errand(self.grid, self.rt, r.id, start, t, [(lg.goal, lg.dwell) for lg in legs], r.home, stats=stats)
+        res = None
+        if self._reachable(start, [lg.goal for lg in legs] + [r.home]):
+            res = plan_errand(self.grid, self.rt, r.id, start, t, [(lg.goal, lg.dwell) for lg in legs], r.home, stats=stats)
         self.plans.append(dict(tick=t, robot=r.id, order_id=order_id, ms=(time.perf_counter() - c0) * 1e3,
                                ok=res is not None, expansions=stats.expansions, n_free=n_free, n_pending=len(self.pending)))
         if res is None:
-            if old is not None:
+            if old is not None and restore:
                 self.rt.reserve(r.id, *old)  # keep the previous (still conflict-free) plan
             return False
         path, arrivals = res
@@ -246,19 +271,37 @@ class Fleet:
         return out
 
     def _freeze(self, r: Robot, t: int, state: int) -> None:
+        """Stop ``r`` on its current cell for good (until it is replanned)."""
         p = r.pos(t)
         self.rt.release(r.id)
+        # The cell may be booked as another robot's future parking spot (its home, reached
+        # later). The stopped robot takes the cell; that robot must replan or wait.
+        holder = self.rt.park.get(p)
+        evicted = None
+        if holder is not None and holder[0] != r.id:
+            evicted = self.robots[holder[0]]
+            evicted_legs = self._remaining(evicted, t)
+            self.rt.release(evicted.id)
         self.rt.reserve(r.id, t, [p])
         r.t0, r.path, r.legs, r.arr, r.frozen = t, [p], None, None, state
         r.states = np.array([state], dtype=np.int8)
         if r.order is not None and r.order.completed > t:
             r.order.completed = -1  # not done until the robot moves again
+        self.stopped_cells.add(p)
+        self.stop_version += 1
+        self._stop_queue.append(r.id)
+        if evicted is not None and not self._try_plan(evicted, t, evicted_legs, restore=False):
+            evicted.resume, evicted.blocked = evicted_legs, True
+            self._freeze(evicted, t, BLOCKED)
 
-    def _resolve(self, t: int, stopped: list[int]) -> None:
+    def _unfreeze(self, r: Robot, t: int) -> None:
+        self.stopped_cells.discard(r.pos(t))
+        self.stop_version += 1
+
+    def _resolve(self, t: int) -> None:
         """Replan every robot whose booked route runs into a robot that just stopped."""
-        queue = list(stopped)
-        while queue:
-            f = self.robots[queue.pop()]
+        while self._stop_queue:
+            f = self.robots[self._stop_queue.pop()]
             c = f.pos(t)
             for j in self.robots:
                 if j is f or j.frozen is not None:
@@ -267,10 +310,9 @@ class Fleet:
                 if j.path[-1] != c and c not in j.path[k0:]:
                     continue
                 legs = self._remaining(j, t)
-                if not self._try_plan(j, t, legs):
+                if not self._try_plan(j, t, legs, restore=False):
                     j.resume, j.blocked = legs, True
                     self._freeze(j, t, BLOCKED)
-                    queue.append(j.id)
 
     def _stop(self, r: Robot, t: int, component: str) -> None:
         """A fault (or a scheduled service) stops the robot where it stands."""
@@ -281,7 +323,7 @@ class Fleet:
                "created": t, "tech": None, "arrive": None, "start": None, "end": None, "status": "waiting"}
         self.jobs.append(job)
         r.job = job
-        self._resolve(t, [r.id])
+        self._resolve(t)
 
     # ------------------------------------------------------------ health
     def _techs(self, t: int) -> None:
@@ -309,9 +351,11 @@ class Fleet:
                 r.hp.repair(job["component"])
                 r.failed, r.job, r.frozen = False, None, None
                 legs, r.resume = r.resume or [], None
-                if not self._try_plan(r, t, legs):
+                self._unfreeze(r, t)
+                if not self._try_plan(r, t, legs, restore=False):
                     r.resume, r.blocked = legs, True
                     self._freeze(r, t, BLOCKED)
+                    self._resolve(t)
 
     def _health_tick(self, t: int, u: np.ndarray) -> None:
         cfg = self.cfg
@@ -365,8 +409,11 @@ class Fleet:
             self._techs(t)
             if t % 3 == 0:
                 for r in self.robots:
-                    if r.blocked and not r.failed and self._try_plan(r, t, r.resume or []):
+                    if not r.blocked or r.failed:
+                        continue
+                    if self._try_plan(r, t, r.resume or []):  # on failure the single-cell reservation is kept
                         r.blocked, r.resume = False, None
+                        self._unfreeze(r, t)
 
         free = []
         for r in self.robots:

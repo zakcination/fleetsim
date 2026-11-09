@@ -93,3 +93,23 @@ def test_health_kpis(grid):
     assert k["failures"] >= 0 and k["blocked_share"] >= 0
     frames = analytics.to_frames(res)
     assert "soc" in frames["ticks"] and "jobs" in frames
+
+
+def test_failure_on_another_robots_future_parking_cell(grid):
+    """Regression: a robot that fails on a cell booked as someone else's future home must
+    take the cell; the other robot replans or waits. (Crashed trial T2's first launch.)"""
+    f = Fleet(SimConfig(n_robots=40, load=1.1, allocator="nearest", maintenance="condition", service_wear=2.0, seed=3), grid=grid)
+    traj, hit = [], None
+    for t in range(1500):
+        f.step(t)
+        if hit is None and t > 50:
+            for r in f.robots:
+                holder = f.rt.park.get(r.pos(t))
+                if not r.failed and r.frozen is None and holder is not None and holder[0] != r.id:
+                    hit = (r.id, holder[0], t)
+                    f._stop(r, t, "motor_l")  # must not raise
+                    break
+        traj.append([r.pos(t) for r in f.robots])
+    assert hit is not None, "scenario did not occur; pick another seed"
+    assert find_conflicts(np.array(traj), grid) == []
+    assert not f.robots[hit[0]].failed  # repaired and moving again

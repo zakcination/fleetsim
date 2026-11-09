@@ -516,7 +516,7 @@ class Sim {
     this.robots.forEach((r) => this.rt.reserve(r.id, 0, r.path));
     this.pending = []; this.nextId = 0; this.done = new Map();
     this.ring = []; this.sum = this.zero(); this.series = []; this.collisions = 0; this.hit = new Set();
-    this.totalDone = 0; this.jobs = []; this.nextJob = 1; this.failures = 0; this.repairsDone = 0; this.events = [];
+    this.stopQueue = []; this.totalDone = 0; this.jobs = []; this.nextJob = 1; this.failures = 0; this.repairsDone = 0; this.events = [];
     this.techs = []; this.syncTechs();
     this.refreshDemand();
   }
@@ -565,11 +565,11 @@ class Sim {
       if (i >= 0) { const comp = t + res.arr[i] + legs[i].dwell; r.order.compT = comp; const l = this.done.get(comp) || []; l.push({ o: r.order, r: r.id }); this.done.set(comp, l); }
     }
   }
-  tryPlan(r, t, legs) { // returns true if r now follows a new plan from t
+  tryPlan(r, t, legs, restore = true) { // plans legs then home; on failure keeps the old plan unless restore is false
     const start = this.pos(r, t);
     let old = null; if (this.planner === "pp") old = this.rt.release(r.id);
     const t0 = performance.now(); const res = this.planLegs(r.id, start, t, legs, r.home); const ms = performance.now() - t0;
-    if (!res) { if (old) this.rt.reserve(r.id, old.t0, old.path); return { ok: false, ms }; }
+    if (!res) { if (old && restore) this.rt.reserve(r.id, old.t0, old.path); return { ok: false, ms }; }
     if (this.planner === "pp") this.rt.reserve(r.id, t, res.path);
     this.commit(r, t, res, legs); return { ok: true, ms };
   }
@@ -579,15 +579,23 @@ class Sim {
     return out;
   }
   freeze(r, t, state) {
-    const p = this.pos(r, t);
-    if (this.planner === "pp") { this.rt.release(r.id); this.rt.reserve(r.id, t, [p]); }
+    const p = this.pos(r, t); let ev = null, evLegs = null;
+    if (this.planner === "pp") {
+      this.rt.release(r.id);
+      // the cell may be booked as another robot's future parking spot: the stopped robot takes it
+      const h = this.rt.park.get(p);
+      if (h && h.a !== r.id) { ev = this.robots[h.a]; evLegs = this.remaining(ev, t); this.rt.release(ev.id); }
+      this.rt.reserve(r.id, t, [p]);
+    }
     r.t0 = t; r.path = [p]; r.st = new Uint8Array([state]); r.legs = null; r.arr = null; r.frozen = state;
     if (r.order) this.removeDone(r.order);
+    if (ev && !this.tryPlan(ev, t, evLegs, false).ok) { ev.resume = evLegs; ev.stuck = true; this.freeze(ev, t, STUCK); this.note(ev, t, "Home cell taken by a stopped robot: waiting"); this.stopQueue.push(ev.id); }
   }
   resolve(t, ids) { // keep everyone collision-free after robots stop unexpectedly
     if (this.planner !== "pp") return;
     const queue = ids.slice();
-    while (queue.length) {
+    while (queue.length || this.stopQueue.length) {
+      if (this.stopQueue.length) queue.push(...this.stopQueue.splice(0));
       const f = this.robots[queue.pop()], c = this.pos(f, t);
       for (const j of this.robots) {
         if (j === f || j.frozen !== null) continue;
@@ -595,7 +603,7 @@ class Sim {
         for (let k = k0; !hits && k < j.path.length; k++) if (j.path[k] === c) hits = true;
         if (!hits) continue;
         const legs = this.remaining(j, t);
-        if (!this.tryPlan(j, t, legs).ok) { j.resume = legs; j.stuck = true; this.freeze(j, t, STUCK); this.note(j, t, "Route blocked by a stopped robot: safety stop"); queue.push(j.id); }
+        if (!this.tryPlan(j, t, legs, false).ok) { j.resume = legs; j.stuck = true; this.freeze(j, t, STUCK); this.note(j, t, "Route blocked by a stopped robot: safety stop"); queue.push(j.id); }
       }
     }
   }
@@ -625,7 +633,7 @@ class Sim {
     r.failed = false; r.job = null; r.frozen = null; this.repairsDone++;
     this.note(r, t, `Repaired: ${COMP_NAME[c]} (job #${job.id}, ${Math.round((t - job.created) / 60)} min)`);
     const legs = r.resume || []; r.resume = null;
-    if (!this.tryPlan(r, t, legs).ok) { r.resume = legs; r.stuck = true; this.freeze(r, t, STUCK); }
+    if (!this.tryPlan(r, t, legs).ok) { r.resume = legs; r.stuck = true; this.freeze(r, t, STUCK); this.resolve(t, []); }
   }
   scheduleService(r, t) {
     r.wantService = true; this.note(r, t, "Service requested: robot will stop at home after its current job");
