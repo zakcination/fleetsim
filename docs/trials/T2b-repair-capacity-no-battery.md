@@ -18,14 +18,14 @@ Identical to T2 except **batteries off**: 50 robots, load 1.0, nearest-pair disp
 Reproduce:
 
 ```bash
-fleetsim bench --robots 50 --loads 1.0 --allocators nearest --initial-wear 0.6 --faults 0 --techs 2 --maintenance interval --replications 10 --no-db --no-parquet --out results/T2b-baseline
+fleetsim bench --robots 50 --loads 1.0 --allocators nearest --replications 10 --no-db --no-parquet --out results/T2b-baseline
 ```
 
 ```bash
 fleetsim bench --robots 50 --loads 1.0 --allocators nearest --initial-wear 0.6 --faults 4 12 --techs 1 2 3 4 --replications 10 --no-db --no-parquet --out results/T2b
 ```
 
-The baseline uses `--maintenance interval` with the default 5,400 s interval only to switch the health layer on with faults at 0 (so wear and telemetry are simulated identically); staggered clocks mean some robots are serviced once.
+**Protocol correction, made before any T2b run.** The first version of this file ran the baseline with `--maintenance interval`, which would have sent robots for scheduled services and lowered the baseline. The baseline is now a plain run with the health layer off. With the same seed it has the same orders and robot homes, and without batteries or faults the health layer does not change how robots move.
 
 ---
 
