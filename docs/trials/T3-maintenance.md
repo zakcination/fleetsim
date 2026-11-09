@@ -69,6 +69,6 @@ As in [T2](T2-repair-capacity.md), batteries were on with 4 chargers. Over 4 hou
 
 ### What this changes
 
-1. In this model, telemetry-driven maintenance beats both extremes, and a badly chosen fixed interval is worse than none. This is the same logic as acting on a risk score instead of a calendar.
+1. In this model, telemetry-driven maintenance beats both extremes, and a badly chosen fixed interval is worse than none. This is the same logic as acting on a risk score instead of a calendar. **Update after T3b:** without batteries the throughput gain over run-to-failure shrinks to 0.7% and order waits get longer; the failure reduction (48%) and the win over the fixed interval remain.
 2. Availability alone is a misleading KPI; where a robot is down matters.
 3. Follow-ups: sweep the wear threshold and the interval (a 5,400 s interval may simply be too short); T3b for the charging caveat.
