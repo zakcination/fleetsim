@@ -20,6 +20,8 @@ v0.1 is a foundation: one map, prioritized space-time A*, three dispatch policie
 | 🟡 | Turn time: rotation as its own one-tick action (the LoRR model: forward, rotate, wait), so a robot's state is (cell, heading, time); behind a switch, with a trial on how much throughput turns cost and whether policy rankings change | Today turns are free; real drive units stop, rotate and accelerate |
 | 🔴 | Acceleration and deceleration limits on top of turn time | Closer to real drive-unit kinematics |
 | 🟡 | Safety zones around technicians (robots keep one or two cells of distance, as real sites do) on top of the booked corridors of v0.2 ([T4](trials/T4-technician-corridors.md)) | People don't walk on schedule; a zone is more robust than a timetable |
+| 🟡 | Technicians: try every waiting job until one can be reached; treat a colleague's route as occupied only when and where they are there; bases with separate approaches (found in [T4c](trials/T4c-technician-corridors-no-deadlock.md)) | In 5 of 20 runs a technician stood idle for over two minutes with a robot waiting |
+| 🟡 | Repair priority by what a broken robot blocks (a station, a base, an aisle), not only by arrival order (found in [T4b](trials/T4b-technician-corridors-fixed-bases.md)) | One robot stopped on the wrong cell closed a station for the rest of the hour |
 | 🟢 | Chargers: pick the charger with the earliest free slot, not only the nearest (found in trial T2) | Removes an artificial charging bottleneck |
 
 ## Track B · Dispatch and warehouse operations

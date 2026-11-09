@@ -13,7 +13,7 @@ The strongest argument against modelling these at all:
 * An event with no response to compare is only a dip in a chart of a size we chose ourselves.
 * Collisions contradict the one guarantee the simulator has. Today a collision cannot happen: every
   route is booked in the reservation table and the independent checker has found zero conflicts in
-  620 trial runs. Letting robots crash needs a new layer (robots that do not follow their booked
+  660 trial runs. Letting robots crash needs a new layer (robots that do not follow their booked
   timing), which is the largest change since v0.1.
 
 So the rule for this track: an incident is a **scenario, not a rate**. We do not claim "outages cost
