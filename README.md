@@ -19,7 +19,7 @@
 |---|---|---|
 | [T1](docs/trials/T1-allocation.md) | Is the Hungarian method's gain optimal matching or queue discipline? | Queue discipline: a one-line nearest-pair rule reaches 100.5–101% of its throughput (300 runs, 0 collisions) |
 | [T2](docs/trials/T2-repair-capacity.md) | How many technicians does a fleet need? | With one technician, 73–86% of repair time is waiting for them. The trial also exposed a flaw in its own design (a charging confound), reported with a follow-up, [T2b](docs/trials/T2b-repair-capacity-no-battery.md) |
-| [T3](docs/trials/T3-maintenance.md) | Run to failure, fixed intervals or condition-based maintenance? | Pre-registered, running |
+| [T3](docs/trials/T3-maintenance.md) | Run to failure, fixed intervals or condition-based maintenance? | Condition-based: +5.5% tasks/h over run-to-failure, +9.6% over a fixed interval, 34% fewer failures. A fixed interval was worse than doing nothing. Follow-up without batteries: [T3b](docs/trials/T3b-maintenance-no-battery.md) |
 
 `fleetsim` simulates an Amazon-style goods-to-person warehouse. Drive units fetch storage pods, bring them to pick stations and put them back, while running on batteries, wearing out, breaking down and getting repaired. It is written for people coming from analytics, operations research or software who want to learn fleet management by experiment. Also: **[classic live 3D simulator](https://zakcination.github.io/fleetsim/live.html)** · **[teaser](docs/media/teaser.mp4)**
 

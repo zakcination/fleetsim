@@ -99,14 +99,15 @@ def t3(name: str = "T3") -> None:
     for ax, (col, title, scale) in zip(axes, (("throughput_per_h", "Tasks per hour", 1), ("availability", "Availability (%)", 100),
                                               ("failures", "Failures in 4 h (services hatched)", 1))):
         g = runs.groupby("maintenance")[col]
-        ax.bar(names, [scale * g.mean()[k] for k in order], yerr=[scale * g.apply(t_half_width)[k] for k in order], capsize=5,
-               color=["#8c8c8c", "#4C72B0", "#55A868"])
-        if col == "failures":
+        colors = ["#8c8c8c", "#4C72B0", "#55A868"]
+        if col == "failures":  # counts: bars from zero
+            ax.bar(names, [g.mean()[k] for k in order], yerr=[g.apply(t_half_width)[k] for k in order], capsize=5, color=colors)
             s = runs.groupby("maintenance")["services"].mean()
             ax.bar(names, [s[k] for k in order], bottom=[g.mean()[k] for k in order], color="none", edgecolor="black", hatch="//")
-        else:
-            lo = min(scale * g.mean()[k] for k in order)
-            ax.set_ylim(lo * 0.9, None)
+        else:  # a zoomed axis, so points and intervals rather than bars
+            for i, k in enumerate(order):
+                ax.errorbar([names[i]], [scale * g.mean()[k]], yerr=[scale * g.apply(t_half_width)[k]], fmt="o", ms=8, capsize=6, color=colors[i])
+            ax.margins(x=0.25)
         ax.set_title(title, fontsize=10); ax.grid(alpha=0.3, axis="y"); ax.tick_params(axis="x", labelsize=8)
     fig.suptitle(f"Trial {name} · 50 robots, faults ×4, 2 technicians, 4 h · 10 seeds, 95% intervals", fontsize=11)
     fig.tight_layout(); fig.savefig(f"results/{name}/{name.lower()}.png", dpi=150); plt.close(fig)

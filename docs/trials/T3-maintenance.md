@@ -37,6 +37,38 @@ fleetsim bench --robots 50 --loads 1.0 --allocators nearest --battery --initial-
 
 ---
 
-## Results
+## Results (run 2026-11-09, commit `c25c5d0`)
 
-*Not yet run.*
+30 runs of 4 simulated hours, **0 collisions**. Raw data: [`results/T3/runs.csv`](../../results/T3/runs.csv). Tables and chart: `python scripts/analyze_t2_t3.py T3`.
+
+![T3 results](../../results/T3/t3.png)
+
+Mean ± 95% half-width over 10 seeds:
+
+| Policy | Tasks/h | Availability | Failures in 4 h | Services in 4 h | MTTR (s) |
+|---|---:|---:|---:|---:|---:|
+| Run to failure | 374.9 ± 5.9 | 0.960 ± 0.006 | 58.9 ± 3.2 | 0 | 490 ± 76 |
+| Fixed interval (5,400 s) | 360.6 ± 6.5 | 0.888 ± 0.021 | 38.2 ± 3.5 | 66.2 ± 2.0 | 813 ± 105 |
+| Condition-based (wear ≥ 0.5) | **395.4 ± 6.7** | 0.932 ± 0.013 | 38.6 ± 3.7 | 13.6 ± 2.8 | 637 ± 118 |
+
+Paired by seed: condition / run-to-failure = **1.055 [1.034, 1.076]**; condition / interval = **1.096 [1.089, 1.104]**; interval / run-to-failure = 0.962 [0.944, 0.981]. Failure reduction against run-to-failure: condition 34.3% [27.8%, 40.8%], interval 34.7% [27.2%, 42.2%].
+
+### Verdicts against the pre-registered bars
+
+- **H1: holds.** Condition-based maintenance completes 5.5% more tasks than run-to-failure (lower bound +3.4%).
+- **H2: holds.** It completes 9.6% more than fixed-interval maintenance (lower bound +8.9%).
+- **H3: holds, narrowly.** 34% fewer failures; the bar was a mean of 30%, and the interval's lower bound is 28%.
+
+Not predicted: **fixed-interval maintenance is worse than doing nothing** (−3.8% tasks/h). It prevents as many failures as the condition-based policy but needs five times as many services (66 vs 14), and the technicians' queue grows (MTTR 813 s vs 490 s). Servicing by the clock over-services healthy robots; servicing by measured wear targets the ones about to fail.
+
+Also worth noticing: run-to-failure has the **highest availability** (96.0%) and still loses on throughput. Availability counts a robot parked at home for a service the same as a robot broken down in an aisle, but the second one also blocks traffic and strands an order.
+
+### Caveat: this fleet was limited by charging
+
+As in [T2](T2-repair-capacity.md), batteries were on with 4 chargers. Over 4 hours the fleet completed about 380 tasks/h against 782 offered, far below what 50 robots can do, because robots queue for chargers. In that regime a robot taken home for service was often about to sit idle anyway, which makes servicing cheaper than it would be in a fleet working at full capacity. [T3b](T3b-maintenance-no-battery.md) repeats the trial with batteries off; it was pre-registered before these results were looked at.
+
+### What this changes
+
+1. In this model, telemetry-driven maintenance beats both extremes, and a badly chosen fixed interval is worse than none. This is the same logic as acting on a risk score instead of a calendar.
+2. Availability alone is a misleading KPI; where a robot is down matters.
+3. Follow-ups: sweep the wear threshold and the interval (a 5,400 s interval may simply be too short); T3b for the charging caveat.
