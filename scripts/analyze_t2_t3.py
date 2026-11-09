@@ -1,4 +1,4 @@
-"""Analyse trials T2 (repair capacity) and T3 (maintenance policy).
+"""Analyse trials T2 / T2b (repair capacity) and T3 / T3b (maintenance policy).
 
 Run the bench commands in docs/trials/T2-repair-capacity.md and T3-maintenance.md first.
 Prints the tables used in the write-ups and saves results/T2/t2.png and results/T3/t3.png.
@@ -27,12 +27,12 @@ def fmt(x, digits=3) -> str:
     return f"{m:.{digits}f} ± {h:.{digits}f}"
 
 
-def t2() -> None:
-    runs = pd.read_csv("results/T2/runs.csv")
-    base = pd.read_csv("results/T2-baseline/runs.csv").set_index("seed")["throughput_per_h"]
+def t2(name: str = "T2") -> None:
+    runs = pd.read_csv(f"results/{name}/runs.csv")
+    base = pd.read_csv(f"results/{name}-baseline/runs.csv").set_index("seed")["throughput_per_h"]
     runs["loss"] = 1 - runs["throughput_per_h"] / runs["seed"].map(base)
     runs["wait_share"] = runs["repair_wait_s"] / runs["mttr_s"]
-    print("== T2: baseline (no faults) tasks/h:", fmt(base, 1), "| collisions:", int(runs.collisions.sum()))
+    print(f"== {name}: baseline (no faults) tasks/h:", fmt(base, 1), "| collisions:", int(runs.collisions.sum()))
     rows = []
     for (f, c), g in runs.groupby(["faults", "techs"]):
         rows.append(dict(faults=f, techs=c, tasks_h=fmt(g.throughput_per_h, 1), loss=fmt(g.loss), availability=fmt(g.availability),
@@ -44,7 +44,15 @@ def t2() -> None:
         wide = g.pivot(index="seed", columns="techs", values="loss")
         for c in (1, 2, 3):
             rec = (wide[c] - wide[c + 1]) / wide[c]
-            print(f"   faults x{f:g}: {c} -> {c + 1} technicians: {fmt(rec)}   (pooled: {1 - wide[c + 1].mean() / wide[c].mean():.3f})")
+            gain = (wide[c] - wide[c + 1]) * runs["seed"].map(base).groupby(runs["seed"]).first()
+            m, h = mean_ci(wide[c])
+            note = "" if m - h > 0 else "   [loss at this level not distinguishable from 0: share not evaluable]"
+            print(f"   faults x{f:g}: {c} -> {c + 1} technicians: recovered share {fmt(rec)}, gain {fmt(gain, 1)} tasks/h{note}")
+        thr = g.pivot(index="seed", columns="techs", values="throughput_per_h")
+        for c in (1, 2, 3, 4):
+            r = thr[c] / base
+            m, h = mean_ci(r)
+            print(f"   faults x{f:g}, {c} technician(s): tasks/h vs baseline {m:.3f} [{m - h:.3f}, {m + h:.3f}]")
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(11.5, 4))
     for f, color in ((4.0, "#4C72B0"), (12.0, "#C44E52")):
@@ -55,18 +63,19 @@ def t2() -> None:
                    color=color, label=f"MTTR, faults ×{f:g}")
         b.plot(g.repair_wait_s.mean().index, g.repair_wait_s.mean() / 60, "--s", color=color, alpha=0.7,
                label=f"of which waiting for a technician, ×{f:g}")
-    a.set_xlabel("technicians"); a.set_ylabel("throughput lost to faults (%)"); a.set_xticks([1, 2, 3, 4])
-    a.set_title("Each added technician buys back less", fontsize=10); a.legend(frameon=False, fontsize=8); a.grid(alpha=0.3)
+    a.axhline(0, color="black", lw=1)
+    a.set_xlabel("technicians"); a.set_ylabel("throughput lost vs fault-free baseline (%)"); a.set_xticks([1, 2, 3, 4])
+    a.set_title("Each added technician buys back less (below 0 = beats the baseline)", fontsize=10); a.legend(frameon=False, fontsize=8); a.grid(alpha=0.3)
     b.set_xlabel("technicians"); b.set_ylabel("minutes per repair"); b.set_xticks([1, 2, 3, 4])
     b.set_title("With few technicians, downtime is mostly waiting", fontsize=10); b.legend(frameon=False, fontsize=8); b.grid(alpha=0.3)
-    fig.suptitle("Trial T2 · 50 robots, load 1.0, aged fleet · 10 seeds per cell, 95% intervals", fontsize=11)
-    fig.tight_layout(); fig.savefig("results/T2/t2.png", dpi=150); plt.close(fig)
-    print("wrote results/T2/t2.png")
+    fig.suptitle(f"Trial {name} · 50 robots, load 1.0, aged fleet · 10 seeds per cell, 95% intervals", fontsize=11)
+    fig.tight_layout(); fig.savefig(f"results/{name}/{name.lower()}.png", dpi=150); plt.close(fig)
+    print(f"wrote results/{name}/{name.lower()}.png")
 
 
-def t3() -> None:
-    runs = pd.read_csv("results/T3/runs.csv")
-    print("\n== T3: collisions:", int(runs.collisions.sum()))
+def t3(name: str = "T3") -> None:
+    runs = pd.read_csv(f"results/{name}/runs.csv")
+    print(f"\n== {name}: collisions:", int(runs.collisions.sum()))
     rows = []
     for m, g in runs.groupby("maintenance"):
         rows.append(dict(policy=m, tasks_h=fmt(g.throughput_per_h, 1), availability=fmt(g.availability), failures=fmt(g.failures, 1),
@@ -99,14 +108,13 @@ def t3() -> None:
             lo = min(scale * g.mean()[k] for k in order)
             ax.set_ylim(lo * 0.9, None)
         ax.set_title(title, fontsize=10); ax.grid(alpha=0.3, axis="y"); ax.tick_params(axis="x", labelsize=8)
-    fig.suptitle("Trial T3 · 50 robots, faults ×4, 2 technicians, 4 h · 10 seeds, 95% intervals", fontsize=11)
-    fig.tight_layout(); fig.savefig("results/T3/t3.png", dpi=150); plt.close(fig)
-    print("wrote results/T3/t3.png")
+    fig.suptitle(f"Trial {name} · 50 robots, faults ×4, 2 technicians, 4 h · 10 seeds, 95% intervals", fontsize=11)
+    fig.tight_layout(); fig.savefig(f"results/{name}/{name.lower()}.png", dpi=150); plt.close(fig)
+    print(f"wrote results/{name}/{name.lower()}.png")
 
 
 if __name__ == "__main__":
-    which = sys.argv[1:] or ["t2", "t3"]
-    if "t2" in which and Path("results/T2/runs.csv").exists():
-        t2()
-    if "t3" in which and Path("results/T3/runs.csv").exists():
-        t3()
+    for name in sys.argv[1:] or ["T2", "T2b", "T3", "T3b"]:
+        if not Path(f"results/{name}/runs.csv").exists():
+            continue
+        (t2 if name.startswith("T2") else t3)(name)
