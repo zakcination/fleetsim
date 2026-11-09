@@ -1,0 +1,1303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>fleetsim Academy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..800&family=Source+Serif+4:opsz,wght@8..60,400..600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a training floor. Left = missions (what to learn next), centre = the 3D floor,
+   right = Fleet view or a single-robot close-up (fleet-to-robot and back), below = every knob, then pinned comparisons.
+   Palette: concrete neutrals, drive-unit orange, station green, pod blue, charger yellow, fault red. */
+:root {
+  --bg: #f2f3ef; --panel: #e7e9e3; --card: #fbfbf8; --fg: #1d221f; --muted: #5b645d; --line: #c9cec5;
+  --accent: #d9680a; --accent-ink: #a94f05; --station: #3a9a4c; --pod: #cfe0ee; --podbox: #6f93b8; --shelf: #3a403c;
+  --floor: #f7f8f5; --blue: #3567ae; --bad: #c93226; --warn: #b07a00; --good: #2f8a43; --home: #a3a8a2;
+  --charge: #d6a400; --repair: #8a4fbf; --stuck: #c77700;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131614; --panel: #1b1f1c; --card: #222723; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35;
+    --accent: #f08a2e; --accent-ink: #f6a45a; --station: #5dbb6c; --pod: #2c3d4c; --podbox: #7fa6cc; --shelf: #0b0d0c;
+    --floor: #2a2f2b; --blue: #7aa3e0; --bad: #ef6a5c; --warn: #e0b04a; --good: #6cc77b; --home: #8a918a;
+    --charge: #f0c419; --repair: #b688e0; --stuck: #e89a3a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131614; --panel: #1b1f1c; --card: #222723; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35;
+  --accent: #f08a2e; --accent-ink: #f6a45a; --station: #5dbb6c; --pod: #2c3d4c; --podbox: #7fa6cc; --shelf: #0b0d0c;
+  --floor: #2a2f2b; --blue: #7aa3e0; --bad: #ef6a5c; --warn: #e0b04a; --good: #6cc77b; --home: #8a918a;
+  --charge: #f0c419; --repair: #b688e0; --stuck: #e89a3a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 3rem; }
+h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; line-height: 1.15; text-wrap: balance; }
+a { color: var(--accent-ink); }
+button:focus-visible, input:focus-visible, select:focus-visible, label:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--font-display); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); }
+button, select { font-family: var(--font-display); font-weight: 650; font-size: 0.82rem; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 0.38rem 0.65rem; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.danger { color: var(--bad); }
+button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+.bar { max-width: 1600px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.1rem; padding-block: 0.9rem 0.7rem; }
+.brand { display: flex; align-items: baseline; gap: 0.6rem; margin-right: auto; min-width: 0; flex-wrap: wrap; }
+.brand h1 { font-size: 1.55rem; font-weight: 800; font-stretch: 120%; }
+.brand h1 b { color: var(--accent); }
+.brand .sub { color: var(--muted); font-size: 0.88rem; }
+.run { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.clock { font-family: var(--font-mono); font-size: 1rem; font-weight: 600; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.28rem 0.55rem; }
+.speed { display: inline-flex; align-items: center; gap: 0.35rem; font-family: var(--font-display); font-size: 0.8rem; font-weight: 600; }
+
+.app { max-width: 1600px; margin: 0 auto; display: grid; gap: 0.9rem; grid-template-columns: 1fr; }
+@media (min-width: 1250px) { .app { grid-template-columns: 290px minmax(0, 1fr) 380px; } }
+@media (min-width: 900px) and (max-width: 1249px) { .app { grid-template-columns: minmax(0, 1fr) 360px; } .missions { grid-column: 1 / -1; order: 3; } }
+
+.missions { background: var(--panel); border-radius: 10px; padding: 0.8rem; display: grid; gap: 0.6rem; align-content: start; min-width: 0; }
+.mlist { display: grid; gap: 0.25rem; }
+.mlist button { text-align: left; display: grid; grid-template-columns: 1.6rem 1fr auto; gap: 0.3rem; align-items: center; background: transparent; border-color: transparent; font-weight: 600; padding: 0.35rem 0.4rem; }
+.mlist button[aria-current="true"] { background: var(--card); border-color: var(--line); }
+.mlist .no { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+.mlist .ok { color: var(--good); font-weight: 800; }
+.mcard { background: var(--card); border-radius: 8px; padding: 0.75rem 0.8rem; display: grid; gap: 0.5rem; font-size: 0.9rem; line-height: 1.45; }
+.mcard h3 { font-size: 1.02rem; font-weight: 750; }
+.mcard p { margin: 0; }
+.tasks { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.35rem; }
+.tasks li { display: grid; grid-template-columns: 1.2rem 1fr; gap: 0.35rem; font-size: 0.86rem; }
+.tasks li .box { width: 1rem; height: 1rem; border: 1.5px solid var(--muted); border-radius: 3px; margin-top: 0.15rem; display: grid; place-items: center; font-size: 0.7rem; font-weight: 800; color: #fff; }
+.tasks li.done .box { background: var(--good); border-color: var(--good); }
+.tasks li.done span:last-child { color: var(--muted); }
+.concept { border-left: 3px solid var(--accent); padding-left: 0.6rem; font-size: 0.86rem; color: var(--fg); }
+
+.viewport { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); align-self: start; background: var(--panel); border-radius: 10px; overflow: hidden; min-height: 340px; aspect-ratio: 99 / 72; max-height: 80vh; width: 100%; }
+@media (max-width: 700px) { .viewport { aspect-ratio: 4 / 3.8; } }
+.viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+.views { position: absolute; top: 10px; right: 10px; display: flex; gap: 0.3rem; }
+.views button { font-size: 0.74rem; padding: 0.28rem 0.5rem; background: color-mix(in srgb, var(--card) 88%, transparent); }
+.views button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.legend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 0.25rem 0.7rem; background: color-mix(in srgb, var(--card) 90%, transparent); border-radius: 6px; padding: 0.3rem 0.55rem; font-size: 0.72rem; font-family: var(--font-display); font-weight: 600; max-width: calc(100% - 20px); }
+.legend span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.sw { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; }
+.hint { position: absolute; left: 10px; top: 10px; font-size: 0.74rem; color: var(--muted); font-family: var(--font-display); background: color-mix(in srgb, var(--card) 85%, transparent); padding: 0.2rem 0.5rem; border-radius: 4px; max-width: 60%; }
+
+.side { display: grid; gap: 0.7rem; align-content: start; min-width: 0; }
+.tabs { display: flex; gap: 0.3rem; }
+.tabs button { flex: 1; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 0.4rem; }
+.kpi { background: var(--card); border-radius: 7px; padding: 0.4rem 0.55rem; border: 1px solid transparent; }
+.kpi .k { font-family: var(--font-display); font-size: 0.63rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.kpi .v { font-family: var(--font-mono); font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.kpi .u { font-size: 0.7rem; color: var(--muted); font-family: var(--font-mono); }
+.kpi.bad { border-color: var(--bad); } .kpi.bad .v { color: var(--bad); }
+.kpi.warn { border-color: var(--warn); } .kpi.warn .v { color: var(--warn); }
+.kpi.good .v { color: var(--good); }
+.panel { background: var(--card); border-radius: 8px; padding: 0.65rem 0.75rem; min-width: 0; }
+.panel h3 { font-size: 0.9rem; font-weight: 700; display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; margin-bottom: 0.35rem; }
+.trend canvas, .spark { width: 100%; display: block; }
+.trend-key { display: flex; gap: 0.7rem; font-size: 0.72rem; color: var(--muted); font-family: var(--font-display); font-weight: 600; flex-wrap: wrap; }
+.trend-key i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+.insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+.insights li { font-size: 0.85rem; line-height: 1.4; padding: 0.4rem 0.5rem; border-radius: 6px; background: var(--panel); display: grid; grid-template-columns: auto 1fr; gap: 0.45rem; align-items: start; }
+.tag { font-family: var(--font-display); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.15rem 0.35rem; border-radius: 3px; color: #fff; white-space: nowrap; margin-top: 0.12rem; }
+.tag.plus { background: var(--good); } .tag.minus { background: var(--bad); } .tag.trade { background: var(--warn); color: #1d1a10; }
+.scroll { max-height: 260px; overflow: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+th, td { padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { font-family: var(--font-display); font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); position: sticky; top: 0; background: var(--card); }
+td.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--panel); }
+.pill { display: inline-block; font-family: var(--font-display); font-size: 0.66rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 999px; color: #fff; }
+.socbar { display: inline-block; width: 46px; height: 7px; border-radius: 4px; background: var(--panel); vertical-align: middle; overflow: hidden; }
+.socbar i { display: block; height: 100%; }
+
+.insp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; justify-content: space-between; }
+.insp-head h2 { font-size: 1.25rem; font-weight: 800; font-stretch: 112%; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.7rem; font-size: 0.84rem; }
+.facts dt { color: var(--muted); font-family: var(--font-display); font-size: 0.74rem; font-weight: 600; }
+.facts dd { margin: 0; font-family: var(--font-mono); font-size: 0.8rem; }
+.schematic svg { width: 100%; height: auto; display: block; }
+.schematic .part { cursor: pointer; }
+.schematic .part:focus-visible { outline: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.log { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.2rem; font-size: 0.8rem; }
+.log li { display: grid; grid-template-columns: 4.6rem 1fr; gap: 0.4rem; }
+.log li .t { font-family: var(--font-mono); color: var(--muted); font-size: 0.74rem; }
+
+.knobs { max-width: 1600px; margin: 1.2rem auto 0; display: grid; gap: 0.9rem; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .knobs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.group { background: var(--panel); border-radius: 10px; padding: 0.85rem 0.9rem 0.95rem; display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.group h2 { font-size: 1rem; font-weight: 750; font-stretch: 112%; }
+.group .gsub { font-size: 0.82rem; color: var(--muted); margin-top: -0.5rem; }
+.knob label.name { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; font-family: var(--font-display); font-weight: 650; font-size: 0.86rem; }
+.knob .val { font-family: var(--font-mono); font-weight: 600; color: var(--accent-ink); }
+.knob .why { font-size: 0.8rem; color: var(--muted); margin: 0.15rem 0 0; }
+.reset-tag { font-family: var(--font-display); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0.05rem 0.3rem; margin-left: 0.3rem; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0.25rem 0 0; }
+.choices { display: grid; gap: 0.35rem; }
+.choice { position: relative; }
+.choice input { position: absolute; opacity: 0; pointer-events: none; }
+.choice label { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 0.45rem 0.6rem; cursor: pointer; }
+.choice label b { font-family: var(--font-display); font-size: 0.86rem; }
+.choice label .one { display: block; font-size: 0.78rem; color: var(--muted); }
+.choice input:checked + label { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.proscons { display: grid; gap: 0.25rem; font-size: 0.8rem; line-height: 1.4; background: var(--card); border-radius: 7px; padding: 0.5rem 0.6rem; }
+.proscons div { display: grid; grid-template-columns: 1.1rem 1fr; gap: 0.2rem; }
+.proscons .p::before { content: "+"; color: var(--good); font-weight: 800; font-family: var(--font-mono); }
+.proscons .m::before { content: "−"; color: var(--bad); font-weight: 800; font-family: var(--font-mono); }
+.seg { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.compare { max-width: 1600px; margin: 1.2rem auto 0; background: var(--panel); border-radius: 10px; padding: 0.85rem 0.9rem; }
+.compare-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; justify-content: space-between; }
+.compare-head h2 { font-size: 1rem; font-weight: 750; }
+.tbl { overflow-x: auto; margin-top: 0.5rem; }
+td.best { color: var(--good); font-weight: 700; }
+.empty { color: var(--muted); font-size: 0.88rem; padding: 0.5rem 0; }
+.about { max-width: 1600px; margin: 1.2rem auto 0; font-size: 0.86rem; color: var(--muted); display: grid; gap: 0.35rem; }
+.about p { margin: 0; max-width: 100ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="brand"><h1>fleetsim <b>Academy</b></h1><span class="sub">start with one robot, grow a fleet, open any robot at any time</span></div>
+  <div class="run">
+    <span class="clock" id="clock">00:00:00</span>
+    <button type="button" class="primary" id="play">Pause</button>
+    <button type="button" id="step">Step 1 s</button>
+    <label class="speed" for="speed">Speed <input type="range" id="speed" min="0" max="6" step="1" value="3" style="width:100px"><span class="mono" id="speed-val">10×</span></label>
+    <button type="button" id="reset">Restart floor</button>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="missions" aria-label="Missions">
+    <div class="eyebrow">Missions</div>
+    <div class="mlist" id="mlist"></div>
+    <div class="mcard" id="mcard"></div>
+  </aside>
+
+  <div class="viewport" id="viewport">
+    <canvas id="c3d" aria-label="3D warehouse floor. Click a robot to inspect it."></canvas>
+    <canvas id="c2d" aria-label="Top-down warehouse floor. Click a robot to inspect it." hidden></canvas>
+    <div class="hint" id="hint">click a robot to inspect it · drag to orbit · scroll to zoom</div>
+    <div class="views" role="group" aria-label="Camera">
+      <button type="button" id="v-iso" aria-pressed="true">3D</button>
+      <button type="button" id="v-top" aria-pressed="false">Top</button>
+      <button type="button" id="v-2d" aria-pressed="false">2D</button>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--accent)"></i>to pod</span>
+      <span><i class="sw" style="background:var(--accent-ink)"></i>carrying</span>
+      <span><i class="sw" style="background:var(--station)"></i>picking</span>
+      <span><i class="sw" style="background:var(--charge)"></i>charging</span>
+      <span><i class="sw" style="background:var(--home)"></i>idle</span>
+      <span><i class="sw" style="background:var(--bad)"></i>failed</span>
+      <span><i class="sw" style="background:var(--repair)"></i>repair</span>
+      <span><i class="sw" style="background:var(--stuck)"></i>blocked</span>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="tabs" role="tablist" aria-label="Panel">
+      <button type="button" role="tab" id="tab-fleet" aria-pressed="true">Fleet</button>
+      <button type="button" role="tab" id="tab-robot" aria-pressed="false">Robot</button>
+    </div>
+    <div id="fleet-pane" class="side">
+      <div class="kpis" id="kpis"></div>
+      <div class="panel trend">
+        <h3>Last 60 min <span class="eyebrow">10-min window</span></h3>
+        <div class="trend-key"><span><i style="background:var(--accent)"></i>done / h</span><span><i style="background:var(--muted)"></i>offered / h</span><span><i style="background:var(--blue)"></i>backlog</span><span><i style="background:var(--good)"></i>available %</span></div>
+        <canvas id="trend" style="height:120px" aria-label="Throughput, backlog and availability over the last hour"></canvas>
+      </div>
+      <div class="panel"><h3>What the fleet is telling you</h3><ul class="insights" id="insights"></ul></div>
+      <div class="panel"><h3>Robots <span class="eyebrow">click one to open it</span></h3><div class="scroll"><table id="robot-table"></table></div></div>
+      <div class="panel"><h3>Repair jobs <span class="eyebrow" id="tech-note"></span></h3><div class="scroll" style="max-height:180px"><table id="jobs-table"></table></div></div>
+    </div>
+    <div id="robot-pane" class="side" hidden></div>
+  </aside>
+</div>
+
+<section class="knobs" aria-label="Configuration">
+  <div class="group">
+    <h2>Fleet</h2>
+    <p class="gsub">How many robots, and how they avoid each other.</p>
+    <div class="knob">
+      <label class="name" for="k-n"><span>Robots <span class="reset-tag">restarts</span></span><span class="val" id="k-n-val">1</span></label>
+      <input type="range" id="k-n" min="1" max="200" step="1" value="1">
+      <p class="why">Start with one. Each extra robot adds capacity until aisles, stations and chargers saturate.</p>
+    </div>
+    <div class="knob">
+      <span class="name eyebrow" style="display:block;margin-bottom:0.3rem">Path planner <span class="reset-tag">restarts</span></span>
+      <div class="choices" role="radiogroup" aria-label="Path planner">
+        <div class="choice"><input type="radio" name="planner" id="p-pp" value="pp" checked><label for="p-pp"><b>Space-time A* (reservations)</b><span class="one">Books (cell, second) slots; nobody collides.</span></label></div>
+        <div class="choice"><input type="radio" name="planner" id="p-naive" value="naive"><label for="p-naive"><b>Shortest path, ignore others</b><span class="one">Each robot drives its own route; watch the crashes.</span></label></div>
+      </div>
+    </div>
+    <div class="proscons" id="pc-planner"></div>
+  </div>
+  <div class="group">
+    <h2>Demand</h2>
+    <p class="gsub">Orders arrive at random (Poisson). Live.</p>
+    <div class="knob">
+      <label class="name" for="k-load"><span>Offered load ρ</span><span class="val" id="k-load-val">1.00</span></label>
+      <input type="range" id="k-load" min="0.2" max="1.6" step="0.05" value="1.0">
+      <p class="why">Work arriving ÷ what the fleet can do without congestion. Above 1 the queue never settles. <span class="mono" id="k-rate"></span></p>
+    </div>
+    <div class="knob">
+      <label class="name" for="k-pick"><span>Pick time at station</span><span class="val" id="k-pick-val">10 s</span></label>
+      <input type="range" id="k-pick" min="2" max="40" step="1" value="10">
+    </div>
+    <div class="knob">
+      <label class="name" for="k-st"><span>Open pick stations</span><span class="val" id="k-st-val">19</span></label>
+      <input type="range" id="k-st" min="1" max="19" step="1" value="19">
+    </div>
+  </div>
+  <div class="group">
+    <h2>Dispatch</h2>
+    <p class="gsub">Which free robot takes which waiting order. Live.</p>
+    <div class="choices" role="radiogroup" aria-label="Dispatch policy">
+      <div class="choice"><input type="radio" name="alloc" id="a-fifo" value="fifo" checked><label for="a-fifo"><b>Greedy, first come first served</b><span class="one">Oldest order takes the nearest free robot.</span></label></div>
+      <div class="choice"><input type="radio" name="alloc" id="a-near" value="near"><label for="a-near"><b>Greedy, nearest pair</b><span class="one">Match the closest robot–order pair first.</span></label></div>
+      <div class="choice"><input type="radio" name="alloc" id="a-hung" value="hung"><label for="a-hung"><b>Hungarian every k s</b><span class="one">Minimum total travel per batch.</span></label></div>
+    </div>
+    <div class="knob" id="k-k-wrap"><label class="name" for="k-k"><span>Re-solve period k</span><span class="val" id="k-k-val">5 s</span></label><input type="range" id="k-k" min="1" max="30" step="1" value="5"></div>
+    <div class="proscons" id="pc-alloc"></div>
+  </div>
+  <div class="group">
+    <h2>Health</h2>
+    <p class="gsub">Batteries, wear, faults and repairs. Live.</p>
+    <div class="knob"><span class="name eyebrow" style="display:block;margin-bottom:0.3rem">Batteries</span>
+      <div class="seg" role="group" aria-label="Batteries"><button type="button" id="bat-off" aria-pressed="true">Off (ideal)</button><button type="button" id="bat-on" aria-pressed="false">On</button></div></div>
+    <div class="knob"><label class="name" for="k-ch"><span>Chargers</span><span class="val" id="k-ch-val">2</span></label><input type="range" id="k-ch" min="1" max="8" step="1" value="2">
+      <p class="why">A robot below the threshold stops taking orders and drives to the nearest charger.</p></div>
+    <div class="knob"><label class="name" for="k-thr"><span>Charge below</span><span class="val" id="k-thr-val">25%</span></label><input type="range" id="k-thr" min="10" max="50" step="5" value="25"></div>
+    <div class="knob"><span class="name eyebrow" style="display:block;margin-bottom:0.3rem">Faults</span>
+      <div class="seg" role="group" aria-label="Fault rate"><button type="button" data-fault="0" aria-pressed="true">Off</button><button type="button" data-fault="1" aria-pressed="false">Rare</button><button type="button" data-fault="4" aria-pressed="false">Normal</button><button type="button" data-fault="12" aria-pressed="false">Frequent</button></div>
+      <p class="why">Worn parts fail more often. A failed robot stops where it is and blocks the aisle until a technician fixes it.</p></div>
+    <div class="knob"><label class="name" for="k-tech"><span>Technicians</span><span class="val" id="k-tech-val">1</span></label><input type="range" id="k-tech" min="1" max="5" step="1" value="1"></div>
+  </div>
+</section>
+
+<section class="compare" aria-label="Pinned runs">
+  <div class="compare-head"><h2>Compare configurations</h2><div class="run"><button type="button" id="pin">Pin current numbers</button><button type="button" id="clear-pins">Clear</button></div></div>
+  <div class="tbl"><table id="pins"></table></div>
+  <p class="empty" id="pins-empty">Run a configuration for 10+ simulated minutes, pin it, change one knob, pin again. The best value per column turns green.</p>
+</section>
+
+<section class="about">
+  <p>Same core as the fleetsim Python package: the League of Robot Runners warehouse crop (72 × 99 cells, 2,920 pod slots, 19 stations), Poisson orders, full-errand space-time A* with a reservation table, three dispatch policies. The health model (battery drain, motor heat and wear, lift cycles, lidar and encoder faults, technicians) is a teaching model with made-up but plausible rates, not data from a real fleet. One tick = one second.</p>
+  <p>Map © The League of Robot Runners (MIT). <a href="guide.html">Field guide</a> · <a href="live.html">Classic live sim</a> · <a href="index.html">Project home</a> · <a href="https://github.com/zakcination/fleetsim">Source on GitHub</a></p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+"use strict";
+// ============================================================ map
+const ROWS = ["@@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....", "@@@@...E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E", "@@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....", "@@@@...............................................................................................", "...................................................................................................", ".E.................................................................................................", "@@@................................................................................................", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS."];
+const H = ROWS.length, W = ROWS[0].length, NC = H * W;
+const CH = (i) => ROWS[(i / W) | 0][i % W];
+const FREE = new Uint8Array(NC);
+for (let i = 0; i < NC; i++) FREE[i] = CH(i) !== "@" ? 1 : 0;
+const NB = [];
+for (let i = 0; i < NC; i++) {
+  const r = (i / W) | 0, c = i % W, out = [];
+  if (FREE[i]) {
+    if (r > 0 && FREE[i - W]) out.push(i - W);
+    if (r < H - 1 && FREE[i + W]) out.push(i + W);
+    if (c > 0 && FREE[i - 1]) out.push(i - 1);
+    if (c < W - 1 && FREE[i + 1]) out.push(i + 1);
+  }
+  NB.push(out);
+}
+const FREE_CELLS = []; for (let i = 0; i < NC; i++) if (FREE[i]) FREE_CELLS.push(i);
+const PODS = FREE_CELLS.filter((i) => CH(i) === "S");
+const EMIT = FREE_CELLS.filter((i) => CH(i) === "E");
+const minCol = Math.min(...EMIT.map((e) => e % W));
+const STATIONS = EMIT.filter((e) => e % W === minCol).sort((a, b) => a - b);
+const CHARGERS = [10, 22, 34, 46, 58, 70, 82, 94].map((c) => 3 * W + c).filter((i) => FREE[i]);
+const TECH_BASE = 4 * W + 2;
+const UNR = 1 << 30;
+const cellRC = (i) => [(i / W) | 0, i % W];
+
+// ============================================================ rng / bfs
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function bfsRaw(src, blocked) {
+  const d = new Int32Array(NC).fill(UNR); d[src] = 0;
+  const q = new Int32Array(NC); let h = 0, tl = 0; q[tl++] = src;
+  while (h < tl) { const u = q[h++], du = d[u] + 1, nb = NB[u]; for (let k = 0; k < nb.length; k++) { const v = nb[k]; if (d[v] === UNR && !(blocked && blocked[v])) { d[v] = du; q[tl++] = v; } } }
+  return d;
+}
+const distCache = new Map();
+function distTo(g) {
+  let d = distCache.get(g);
+  if (d) { distCache.delete(g); distCache.set(g, d); return d; }
+  d = bfsRaw(g, null); distCache.set(g, d);
+  if (distCache.size > 1500) distCache.delete(distCache.keys().next().value);
+  return d;
+}
+function shortestPath(a, b) {
+  const d = distTo(b); if (d[a] >= UNR) return null;
+  const p = [a]; let cur = a;
+  while (cur !== b) { const nb = NB[cur]; for (let k = 0; k < nb.length; k++) if (d[nb[k]] === d[cur] - 1) { cur = nb[k]; break; } p.push(cur); }
+  return p;
+}
+function chooseParking(n) {
+  const stationSet = new Set(STATIONS), avoid = new Set();
+  STATIONS.forEach((s) => NB[s].forEach((v) => avoid.add(v)));
+  CHARGERS.forEach((c) => { avoid.add(c); NB[c].forEach((v) => avoid.add(v)); });
+  const c0 = FREE_CELLS.filter((i) => CH(i) === "." && !avoid.has(i) && !stationSet.has(i) && NB[i].length >= 3);
+  const cands = c0.filter((_, k) => k % 2 === 0).concat(c0.filter((_, k) => k % 2 === 1));
+  const blocked = new Uint8Array(NC), chosen = []; const probe = STATIONS[0]; const nFree = FREE_CELLS.length;
+  for (const c of cands) {
+    if (chosen.length === n) break;
+    if (c === probe || NB[c].some((v) => blocked[v])) continue;
+    blocked[c] = 1;
+    const d = bfsRaw(probe, blocked); let reach = 0; for (let i = 0; i < NC; i++) if (d[i] < UNR) reach++;
+    if (reach === nFree - chosen.length - 1) chosen.push(c); else blocked[c] = 0;
+  }
+  return chosen;
+}
+
+// ============================================================ reservation table + space-time A*
+const K = 8192;
+class RT {
+  constructor() { this.v = new Map(); this.e = new Map(); this.park = new Map(); this.last = new Map(); this.owned = new Map(); }
+  reserve(a, t0, path) {
+    let prev = -1;
+    for (let k = 0; k < path.length; k++) {
+      const c = path[k], t = t0 + k;
+      this.v.set(t * K + c, a);
+      if (prev >= 0 && prev !== c) this.e.set(((t - 1) * K + prev) * K + c, a);
+      let m = this.last.get(c); if (!m) { m = new Map(); this.last.set(c, m); } m.set(a, t);
+      prev = c;
+    }
+    this.park.set(path[path.length - 1], { a, from: t0 + path.length - 1 });
+    this.owned.set(a, { t0, path });
+  }
+  release(a) {
+    const o = this.owned.get(a); if (!o) return null; this.owned.delete(a);
+    let prev = -1;
+    for (let k = 0; k < o.path.length; k++) {
+      const c = o.path[k], t = o.t0 + k, vk = t * K + c;
+      if (this.v.get(vk) === a) this.v.delete(vk);
+      if (prev >= 0 && prev !== c) { const ek = ((t - 1) * K + prev) * K + c; if (this.e.get(ek) === a) this.e.delete(ek); }
+      const m = this.last.get(c); if (m) { m.delete(a); if (!m.size) this.last.delete(c); }
+      prev = c;
+    }
+    const end = o.path[o.path.length - 1], p = this.park.get(end);
+    if (p && p.a === a) this.park.delete(end);
+    return o;
+  }
+  free(c, t, a) { const o = this.v.get(t * K + c); if (o !== undefined && o !== a) return false; const p = this.park.get(c); return !p || p.a === a || t < p.from; }
+  move(x, y, t, a) { const o = this.e.get((t * K + y) * K + x); return o === undefined || o === a; }
+  lastUse(c, a) { const p = this.park.get(c); if (p && p.a !== a) return Infinity; const m = this.last.get(c); if (!m) return -1; let b = -1; m.forEach((t, who) => { if (who !== a && t > b) b = t; }); return b; }
+  prune(now) {
+    for (const k of this.v.keys()) if (Math.floor(k / K) < now) this.v.delete(k);
+    for (const k of this.e.keys()) if (Math.floor(k / (K * K)) < now) this.e.delete(k);
+  }
+}
+class Heap {
+  constructor() { this.a = []; }
+  get size() { return this.a.length; }
+  less(x, y) { return x[0] < y[0] || (x[0] === y[0] && (x[1] < y[1] || (x[1] === y[1] && x[2] < y[2]))); }
+  push(x) { const a = this.a; a.push(x); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (!this.less(a[i], a[p])) break; [a[i], a[p]] = [a[p], a[i]]; i = p; } }
+  pop() { const a = this.a, top = a[0], last = a.pop(); if (a.length) { a[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < a.length && this.less(a[l], a[m])) m = l; if (r < a.length && this.less(a[r], a[m])) m = r; if (m === i) break; [a[i], a[m]] = [a[m], a[i]]; i = m; } } return top; }
+}
+function stAstar(rt, agent, start, t0, goal, dwell, final) {
+  const dist = distTo(goal); if (dist[start] >= UNR) return null;
+  const base = dist[start];
+  let tStar;
+  if (final) { const last = rt.lastUse(goal, agent); if (last === Infinity) return null; tStar = Math.max(t0 + base, last + 1); }
+  else {
+    const pk = rt.park.get(goal); if (pk && pk.a !== agent) return null;
+    tStar = t0 + base; const lim = t0 + 4 * base + 400;
+    const ok = (t) => { for (let k = 0; k <= dwell; k++) if (!rt.free(goal, t + k, agent)) return false; return true; };
+    while (tStar <= lim && !ok(tStar)) tStar++;
+    if (tStar > lim) return null;
+  }
+  const maxT = tStar + 2 * base + 200;
+  const goalOk = (t) => { if (t < tStar) return false; if (final) return true; for (let k = 1; k <= dwell; k++) if (!rt.free(goal, t + k, agent)) return false; return true; };
+  const open = new Heap(); const h0 = Math.max(base, tStar - t0);
+  open.push([h0, h0, 0, start, t0]);
+  const parent = new Map(); parent.set(t0 * K + start, -1);
+  let cnt = 0, exp = 0;
+  while (open.size) {
+    const [, , , cell, t] = open.pop();
+    if (cell === goal && goalOk(t)) { const path = []; let key = t * K + cell; while (key !== -1) { path.push(key % K); key = parent.get(key); } return path.reverse(); }
+    if (++exp > 50000) break;
+    if (t >= maxT) continue;
+    const nt = t + 1, nb = NB[cell];
+    for (let q = -1; q < nb.length; q++) {
+      const nxt = q < 0 ? cell : nb[q], key = nt * K + nxt;
+      if (parent.has(key) || !rt.free(nxt, nt, agent)) continue;
+      if (nxt !== cell && !rt.move(cell, nxt, t, agent)) continue;
+      parent.set(key, t * K + cell);
+      const h = Math.max(dist[nxt], tStar - nt);
+      open.push([nt - t0 + h, h, ++cnt, nxt, nt]);
+    }
+  }
+  return null;
+}
+function hungarian(C) {
+  const n = C.length, m = C[0].length, INF = 1e18;
+  const u = new Float64Array(n + 1), v = new Float64Array(m + 1), p = new Int32Array(m + 1), way = new Int32Array(m + 1);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i; let j0 = 0; const minv = new Float64Array(m + 1).fill(INF), used = new Uint8Array(m + 1);
+    do {
+      used[j0] = 1; const i0 = p[j0]; let delta = INF, j1 = 0;
+      for (let j = 1; j <= m; j++) if (!used[j]) { const cur = C[i0 - 1][j - 1] - u[i0] - v[j]; if (cur < minv[j]) { minv[j] = cur; way[j] = j0; } if (minv[j] < delta) { delta = minv[j]; j1 = j; } }
+      for (let j = 0; j <= m; j++) { if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta; }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+  }
+  const res = []; for (let j = 1; j <= m; j++) if (p[j]) res.push([p[j] - 1, j - 1]);
+  return res;
+}
+
+// ============================================================ states, legs, health model
+const IDLE = 0, TO_POD = 1, LIFT = 2, TO_STATION = 3, SERVICE = 4, RETURN = 5, DROP = 6, TO_HOME = 7, TO_CHARGER = 8, CHARGING = 9, FAILED = 10, REPAIR = 11, STUCK = 12;
+const STATE_TEXT = ["Idle at home", "Driving to the pod", "Lifting the pod", "Carrying the pod to a station", "Waiting while a worker picks", "Returning the pod", "Lowering the pod", "Driving home", "Driving to a charger", "Charging", "Failed, waiting for a technician", "Being repaired", "Blocked, waiting for a free route"];
+const STATE_SHORT = ["idle", "to pod", "lifting", "to station", "picking", "returning", "lowering", "to home", "to charger", "charging", "FAILED", "repair", "blocked"];
+const STATE_VAR = ["--home", "--accent", "--accent-ink", "--accent-ink", "--station", "--accent-ink", "--accent-ink", "--home", "--charge", "--charge", "--bad", "--repair", "--stuck"];
+const LIFT_T = 2, DROP_T = 2;
+const orderLegs = (o, svc) => [
+  { goal: o.pod, dwell: LIFT_T, travel: TO_POD, dwellSt: LIFT, tag: "pod" },
+  { goal: o.station, dwell: svc, travel: TO_STATION, dwellSt: SERVICE, tag: "station" },
+  { goal: o.pod, dwell: DROP_T, travel: RETURN, dwellSt: DROP, tag: "drop" }];
+function statesFor(n, legs, arr) {
+  const s = new Uint8Array(n).fill(IDLE); let prev = 0;
+  legs.forEach((L, i) => { const a = arr[i]; for (let k = prev; k < a; k++) s[k] = L.travel; for (let k = a; k < a + L.dwell && k < n; k++) s[k] = L.dwellSt; prev = a + L.dwell; });
+  const h = arr[legs.length]; for (let k = prev; k < h; k++) s[k] = TO_HOME;
+  return s;
+}
+// Teaching rates (per second). Faults scale with the "Faults" knob and with wear.
+const HEALTH = {
+  drainMove: 100 / (75 * 60), drainIdle: 100 / (12 * 3600), drainLift: 0.12, chargeRate: 100 / (14 * 60), chargeTo: 95,
+  heatMove: 0.33, heatCarry: 0.47, cool: 0.02, ambient: 24, overheat: 72,
+  motorWearPerMove: 1 / 40000, liftWearPerCycle: 1 / 1500,
+  pMotor: 4e-6, pLift: 1e-4, pLidar: 3e-6, pEncoder: 2e-6, pBattery: 1e-6,
+};
+const REPAIR_S = { motorL: 300, motorR: 300, lift: 240, lidar: 120, encoder: 90, battery: 360, depleted: 180, service: 150 };
+const COMP_NAME = { motorL: "Left drive motor", motorR: "Right drive motor", lift: "Lift actuator", lidar: "Lidar", encoder: "Wheel encoders", battery: "Battery pack", depleted: "Battery depleted", service: "Scheduled service" };
+function newHealth(rnd) {
+  return { soc: 70 + 30 * rnd(), batHealth: 100 - 6 * rnd(), tempL: 24, tempR: 24, wearL: 0.15 * rnd(), wearR: 0.15 * rnd(), liftWear: 0.15 * rnd(), lifts: 0, odo: 0, lidarOk: true, encOk: true };
+}
+
+// ============================================================ simulation
+const WIN = 600, TEL = 600;
+class Sim {
+  constructor(cfg) { this.cfg = cfg; this.reset(); }
+  reset() {
+    const c = this.cfg;
+    this.t = 0; this.rng = mulberry32(12345 + c.n); this.frng = mulberry32(777 + c.n);
+    this.homes = chooseParking(c.n);
+    this.rt = new RT(); this.planner = c.planner;
+    this.robots = this.homes.map((h, i) => ({
+      id: i, home: h, t0: 0, path: [h], st: new Uint8Array([IDLE]), legs: null, arr: null, order: null,
+      frozen: null, resume: null, failed: false, stuck: false, job: null, wantService: false, kind: "idle",
+      hp: newHealth(this.frng), tel: { soc: new Float32Array(TEL), tl: new Float32Array(TEL), tr: new Float32Array(TEL), mv: new Uint8Array(TEL) }, log: [], done: 0, waits: 0,
+    }));
+    this.robots.forEach((r) => this.rt.reserve(r.id, 0, r.path));
+    this.pending = []; this.nextId = 0; this.done = new Map();
+    this.ring = []; this.sum = this.zero(); this.series = []; this.collisions = 0; this.hit = new Set();
+    this.totalDone = 0; this.jobs = []; this.nextJob = 1; this.failures = 0; this.repairsDone = 0; this.events = [];
+    this.techs = []; this.syncTechs();
+    this.refreshDemand();
+  }
+  zero() { return { done: 0, busy: 0, travel: 0, waiting: 0, svc: 0, ms: 0, calls: 0, fails: 0, conf: 0, wsum: 0, wn: 0, dsum: 0, dn: 0, ticks: 0, avail: 0, rfail: 0, rep: 0, repSum: 0, socMin: 100, charging: 0 }; }
+  syncTechs() {
+    while (this.techs.length < this.cfg.techs) this.techs.push({ id: this.techs.length, cell: TECH_BASE, job: null, path: [TECH_BASE], depart: 0 });
+    while (this.techs.length > this.cfg.techs) { const i = this.techs.findIndex((x) => !x.job); if (i < 0) break; this.techs.splice(i, 1); }
+  }
+  refreshDemand() {
+    const c = this.cfg, k = c.stations, S = STATIONS.length;
+    this.open = k >= S ? STATIONS.slice() : Array.from({ length: k }, (_, i) => STATIONS[Math.round(k === 1 ? (S - 1) / 2 : i * (S - 1) / (k - 1))]);
+    this.chargers = CHARGERS.slice(0, c.chargers);
+    const r = mulberry32(99); let tot = 0;
+    for (let s = 0; s < 300; s++) {
+      const pod = PODS[(r() * PODS.length) | 0], st = this.open[(r() * this.open.length) | 0], home = this.homes[(r() * this.homes.length) | 0];
+      tot += distTo(pod)[home] + LIFT_T + 2 * distTo(st)[pod] + c.service + DROP_T;
+    }
+    this.cycle = tot / 300; this.rate = c.load * c.n / this.cycle;
+  }
+  pos(r, t) { const k = t - r.t0; return k < r.path.length ? r.path[Math.max(0, k)] : r.path[r.path.length - 1]; }
+  state(r, t) { const k = t - r.t0; if (k < r.st.length) return r.st[Math.max(0, k)]; return r.frozen !== null ? r.frozen : IDLE; }
+  poisson(l) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *= this.rng(); } while (p > L); return k - 1; }
+  note(r, t, text) { r.log.unshift({ t, text }); if (r.log.length > 30) r.log.pop(); }
+
+  // ---- planning
+  planLegs(id, start, t, legs, home) {
+    const path = [start], arr = []; let cur = start, tt = t;
+    for (const L of legs) {
+      const seg = this.planner === "naive" ? shortestPath(cur, L.goal) : stAstar(this.rt, id, cur, tt, L.goal, L.dwell, false);
+      if (!seg) return null;
+      for (let k = 1; k < seg.length; k++) path.push(seg[k]);
+      arr.push(path.length - 1); for (let k = 0; k < L.dwell; k++) path.push(L.goal);
+      cur = L.goal; tt = t + path.length - 1;
+    }
+    const seg = this.planner === "naive" ? shortestPath(cur, home) : stAstar(this.rt, id, cur, tt, home, 0, true);
+    if (!seg) return null;
+    for (let k = 1; k < seg.length; k++) path.push(seg[k]);
+    arr.push(path.length - 1); return { path, arr };
+  }
+  removeDone(o) { if (o.compT == null) return; const l = this.done.get(o.compT); if (l) { const i = l.findIndex((x) => x.o === o); if (i >= 0) l.splice(i, 1); } o.compT = null; }
+  commit(r, t, res, legs) {
+    r.t0 = t; r.path = res.path; r.arr = res.arr; r.legs = legs; r.st = statesFor(res.path.length, legs, res.arr); r.frozen = null;
+    if (r.order) {
+      const i = legs.findIndex((L) => L.tag === "drop");
+      this.removeDone(r.order);
+      if (i >= 0) { const comp = t + res.arr[i] + legs[i].dwell; r.order.compT = comp; const l = this.done.get(comp) || []; l.push({ o: r.order, r: r.id }); this.done.set(comp, l); }
+    }
+  }
+  tryPlan(r, t, legs) { // returns true if r now follows a new plan from t
+    const start = this.pos(r, t);
+    let old = null; if (this.planner === "pp") old = this.rt.release(r.id);
+    const t0 = performance.now(); const res = this.planLegs(r.id, start, t, legs, r.home); const ms = performance.now() - t0;
+    if (!res) { if (old) this.rt.reserve(r.id, old.t0, old.path); return { ok: false, ms }; }
+    if (this.planner === "pp") this.rt.reserve(r.id, t, res.path);
+    this.commit(r, t, res, legs); return { ok: true, ms };
+  }
+  remaining(r, t) {
+    const k = t - r.t0, out = []; if (!r.legs) return out;
+    r.legs.forEach((L, i) => { const a = r.arr[i], e = a + L.dwell; if (k >= e) return; out.push(k >= a ? { ...L, dwell: e - k } : { ...L }); });
+    return out;
+  }
+  freeze(r, t, state) {
+    const p = this.pos(r, t);
+    if (this.planner === "pp") { this.rt.release(r.id); this.rt.reserve(r.id, t, [p]); }
+    r.t0 = t; r.path = [p]; r.st = new Uint8Array([state]); r.legs = null; r.arr = null; r.frozen = state;
+    if (r.order) this.removeDone(r.order);
+  }
+  resolve(t, ids) { // keep everyone collision-free after robots stop unexpectedly
+    if (this.planner !== "pp") return;
+    const queue = ids.slice();
+    while (queue.length) {
+      const f = this.robots[queue.pop()], c = this.pos(f, t);
+      for (const j of this.robots) {
+        if (j === f || j.frozen !== null) continue;
+        const k0 = Math.max(0, t + 1 - j.t0); let hits = j.path[j.path.length - 1] === c;
+        for (let k = k0; !hits && k < j.path.length; k++) if (j.path[k] === c) hits = true;
+        if (!hits) continue;
+        const legs = this.remaining(j, t);
+        if (!this.tryPlan(j, t, legs).ok) { j.resume = legs; j.stuck = true; this.freeze(j, t, STUCK); this.note(j, t, "Route blocked by a stopped robot: safety stop"); queue.push(j.id); }
+      }
+    }
+  }
+  fail(r, t, comp) {
+    if (r.failed) return;
+    r.resume = r.stuck ? r.resume : this.remaining(r, t);
+    r.failed = true; r.stuck = false; if (comp !== "service") this.failures++;
+    this.freeze(r, t, FAILED);
+    const job = { id: this.nextJob++, robot: r.id, comp, created: t, status: "waiting", tech: null, start: null, end: null, priority: false };
+    this.jobs.push(job); r.job = job;
+    this.note(r, t, `FAULT: ${COMP_NAME[comp]}. Repair job #${job.id} opened`);
+    if (comp !== "service") this.events.push({ t, kind: "fail", robot: r.id, comp });
+    if (this.events.length > 500) this.events.shift();
+    this.resolve(t, [r.id]);
+    return job;
+  }
+  finishRepair(r, t, job) {
+    const hp = r.hp, c = job.comp;
+    if (c === "motorL") { hp.wearL = 0; hp.tempL = HEALTH.ambient; }
+    if (c === "motorR") { hp.wearR = 0; hp.tempR = HEALTH.ambient; }
+    if (c === "lift") hp.liftWear = 0;
+    if (c === "lidar") hp.lidarOk = true;
+    if (c === "encoder") hp.encOk = true;
+    if (c === "battery") { hp.batHealth = 100; hp.soc = 100; }
+    if (c === "depleted") hp.soc = 60;
+    if (c === "service") { hp.wearL = 0; hp.wearR = 0; hp.liftWear = 0; hp.tempL = hp.tempR = HEALTH.ambient; hp.lidarOk = hp.encOk = true; }
+    r.failed = false; r.job = null; r.frozen = null; this.repairsDone++;
+    this.note(r, t, `Repaired: ${COMP_NAME[c]} (job #${job.id}, ${Math.round((t - job.created) / 60)} min)`);
+    const legs = r.resume || []; r.resume = null;
+    if (!this.tryPlan(r, t, legs).ok) { r.resume = legs; r.stuck = true; this.freeze(r, t, STUCK); }
+  }
+  scheduleService(r, t) {
+    r.wantService = true; this.note(r, t, "Service requested: robot will stop at home after its current job");
+  }
+  stepTechs(t, rec) {
+    this.syncTechs();
+    const waiting = this.jobs.filter((j) => j.status === "waiting").sort((a, b) => (b.priority - a.priority) || (a.created - b.created));
+    for (const tech of this.techs) {
+      if (!tech.job && waiting.length) {
+        const job = waiting.shift(), robot = this.robots[job.robot];
+        const target = this.pos(robot, t);
+        tech.job = job; job.tech = tech.id; job.status = "en route";
+        tech.path = shortestPath(tech.cell, target) || [tech.cell, target]; tech.depart = t;
+        job.arrive = t + tech.path.length - 1;
+      }
+      const job = tech.job; if (!job) continue;
+      if (job.status === "en route" && t >= job.arrive) {
+        job.status = "repairing"; job.start = t; job.end = t + REPAIR_S[job.comp];
+        tech.cell = tech.path[tech.path.length - 1];
+        const r = this.robots[job.robot]; r.frozen = REPAIR; r.st = new Uint8Array([REPAIR]);
+        this.note(r, t, `Technician ${tech.id + 1} arrived; ${COMP_NAME[job.comp]} repair takes ${Math.round(REPAIR_S[job.comp] / 60)} min`);
+      }
+      if (job.status === "repairing" && t >= job.end) {
+        job.status = "done"; tech.job = null; rec.rep++; rec.repSum += t - job.created;
+        this.finishRepair(this.robots[job.robot], t, job);
+      }
+    }
+    if (this.jobs.length > 200) this.jobs = this.jobs.filter((j) => j.status !== "done" || t - j.end < 3600);
+  }
+  health(r, t, rec) { // battery, heat, wear and faults for one robot during tick t
+    const c = this.cfg, hp = r.hp, s = this.state(r, t);
+    if (s === FAILED || s === REPAIR) return;
+    const moving = this.pos(r, t) !== this.pos(r, t + 1);
+    if (c.battery) {
+      if (s === CHARGING) { hp.soc = Math.min(100, hp.soc + HEALTH.chargeRate * (hp.batHealth / 100)); hp.batHealth = Math.max(60, hp.batHealth - 0.00003); }
+      else if (moving) hp.soc -= HEALTH.drainMove * (s === TO_STATION || s === RETURN ? 1.25 : 1);
+      else if (s === LIFT || s === DROP) hp.soc -= HEALTH.drainLift;
+      else hp.soc -= HEALTH.drainIdle;
+      if (hp.soc <= 0) { hp.soc = 0; this.fail(r, t, "depleted"); return; }
+    }
+    const heat = moving ? (s === TO_STATION || s === RETURN ? HEALTH.heatCarry : HEALTH.heatMove) : 0;
+    hp.tempL += heat * (1 + hp.wearL) - (hp.tempL - HEALTH.ambient) * HEALTH.cool;
+    hp.tempR += heat * (1 + hp.wearR) - (hp.tempR - HEALTH.ambient) * HEALTH.cool;
+    if (moving) { hp.wearL += HEALTH.motorWearPerMove; hp.wearR += HEALTH.motorWearPerMove * 1.05; hp.odo += 1; }
+    if (s === LIFT && t === r.t0 + r.arr?.[0]) { hp.lifts++; hp.liftWear += HEALTH.liftWearPerCycle; }
+    const f = c.faults; if (!f) return;
+    const u = () => this.frng();
+    if (moving) {
+      if (u() < f * HEALTH.pMotor * (1 + 30 * hp.wearL ** 3) + (hp.tempL > HEALTH.overheat ? 2e-4 * f : 0)) return this.fail(r, t, "motorL");
+      if (u() < f * HEALTH.pMotor * (1 + 30 * hp.wearR ** 3) + (hp.tempR > HEALTH.overheat ? 2e-4 * f : 0)) return this.fail(r, t, "motorR");
+      if (u() < f * HEALTH.pLidar) { hp.lidarOk = false; return this.fail(r, t, "lidar"); }
+      if (u() < f * HEALTH.pEncoder) { hp.encOk = false; return this.fail(r, t, "encoder"); }
+    }
+    if (s === LIFT && u() < f * HEALTH.pLift * (1 + 30 * hp.liftWear ** 3)) return this.fail(r, t, "lift");
+    if (c.battery && u() < f * HEALTH.pBattery * (1 + 20 * ((100 - hp.batHealth) / 40) ** 2)) return this.fail(r, t, "battery");
+  }
+
+  allocate(free) {
+    const c = this.cfg, P = this.pending;
+    if (!free.length || !P.length) return [];
+    if (c.alloc === "fifo") {
+      const used = new Uint8Array(free.length), out = [];
+      for (let j = 0; j < P.length && out.length < free.length; j++) {
+        const d = distTo(P[j].pod); let best = -1, bd = UNR;
+        for (let i = 0; i < free.length; i++) if (!used[i] && d[free[i][1]] < bd) { bd = d[free[i][1]]; best = i; }
+        if (best < 0) break; used[best] = 1; out.push([free[best][0], P[j]]);
+      }
+      return out;
+    }
+    if (c.alloc === "hung" && this.t % c.k !== 0) return [];
+    const win = P.slice(0, Math.max(20, 2 * free.length));
+    const C = free.map(([, pos]) => win.map((o) => { const d = distTo(o.pod)[pos]; return d >= UNR ? 1e9 : d; }));
+    if (c.alloc === "near") {
+      const cells = []; C.forEach((row, i) => row.forEach((v, j) => cells.push([v, i, j])));
+      cells.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
+      const ur = new Uint8Array(free.length), uc = new Uint8Array(win.length), out = [];
+      for (const [, i, j] of cells) { if (ur[i] || uc[j]) continue; ur[i] = 1; uc[j] = 1; out.push([free[i][0], win[j]]); if (out.length === Math.min(free.length, win.length)) break; }
+      return out;
+    }
+    if (free.length <= win.length) return hungarian(C).map(([i, j]) => [free[i][0], win[j]]);
+    const CT = win.map((_, j) => C.map((row) => row[j]));
+    return hungarian(CT).map(([j, i]) => [free[i][0], win[j]]);
+  }
+
+  tick() {
+    const c = this.cfg, t = this.t, rec = this.zero(), f0 = this.failures; rec.ticks = 1; rec.socMin = 100;
+    // 1. orders arrive
+    const k = this.poisson(this.rate);
+    for (let q = 0; q < k; q++) this.pending.push({ id: this.nextId++, pod: PODS[(this.rng() * PODS.length) | 0], station: this.open[(this.rng() * this.open.length) | 0], created: t, compT: null });
+    // 2. technicians and blocked robots
+    this.stepTechs(t, rec);
+    if (t % 3 === 0) for (const r of this.robots) if (r.stuck && !r.failed) {
+      const legs = r.resume || [];
+      const res = this.tryPlan(r, t, legs);
+      if (res.ok) { r.stuck = false; r.resume = null; this.note(r, t, "Route clear again: resuming"); }
+      else if (this.planner === "pp") { this.rt.release(r.id); this.rt.reserve(r.id, t, [this.pos(r, t)]); r.t0 = t; r.path = [this.pos(r, t)]; r.st = new Uint8Array([STUCK]); }
+    }
+    // 3. service requests, charging decisions, free robots
+    const free = [];
+    for (const r of this.robots) {
+      if (r.failed || r.stuck) continue;
+      const s = this.state(r, t), p = this.pos(r, t);
+      if (s !== IDLE && s !== TO_HOME) continue;
+      if (r.wantService && s === IDLE && p === r.home) { r.wantService = false; this.fail(r, t, "service"); continue; }
+      if (c.battery && r.hp.soc < c.chargeAt && this.chargers.length) {
+        const ch = this.chargers.slice().sort((a, b) => distTo(a)[p] - distTo(b)[p])[0];
+        const need = Math.ceil((HEALTH.chargeTo - r.hp.soc + distTo(ch)[p] * HEALTH.drainMove) / (HEALTH.chargeRate * r.hp.batHealth / 100));
+        const legs = [{ goal: ch, dwell: Math.max(10, need), travel: TO_CHARGER, dwellSt: CHARGING, tag: "charge" }];
+        const res = this.tryPlan(r, t, legs); rec.ms += res.ms; rec.calls++;
+        if (res.ok) { r.order = null; this.note(r, t, `Battery ${Math.round(r.hp.soc)}%: going to charger`); } else rec.fails++;
+        continue;
+      }
+      if (r.wantService) continue;
+      free.push([r.id, p]);
+    }
+    const pairs = this.allocate(free); const taken = new Set();
+    for (const [rid, o] of pairs) {
+      const r = this.robots[rid], start = this.pos(r, t);
+      const legs = orderLegs(o, c.service);
+      r.order = o; const res = this.tryPlan(r, t, legs); rec.ms += res.ms; rec.calls++;
+      if (!res.ok) { r.order = null; rec.fails++; continue; }
+      o.assigned = t; o.robot = rid;
+      o.ff = distTo(o.pod)[start] + LIFT_T + 2 * distTo(o.station)[o.pod] + c.service + DROP_T;
+      rec.wsum += t - o.created; rec.wn++; taken.add(o.id);
+      this.note(r, t, `Order #${o.id}: pod at ${cellRC(o.pod).join(",")} to station ${STATIONS.indexOf(o.station) + 1}`);
+    }
+    if (taken.size) this.pending = this.pending.filter((o) => !taken.has(o.id));
+    // 4. health, telemetry, observations
+    for (const r of this.robots) this.health(r, t, rec);
+    const seen = new Map(); this.hit = new Set(); const ti = t % TEL;
+    for (const r of this.robots) {
+      const s = this.state(r, t), p = this.pos(r, t), np = this.pos(r, t + 1);
+      if (s >= 1 && s <= 6) rec.busy++;
+      if (s === TO_POD || s === TO_STATION || s === RETURN) { rec.travel++; if (np === p) { rec.waiting++; r.waits++; } }
+      if (s === SERVICE) rec.svc++;
+      if (s === CHARGING) rec.charging++;
+      if (s !== FAILED && s !== REPAIR) rec.avail++;
+      if (c.battery) rec.socMin = Math.min(rec.socMin, r.hp.soc);
+      r.tel.soc[ti] = c.battery ? r.hp.soc : 100; r.tel.tl[ti] = r.hp.tempL; r.tel.tr[ti] = r.hp.tempR; r.tel.mv[ti] = np !== p ? 1 : 0;
+      if (seen.has(p)) { rec.conf++; this.hit.add(r.id); this.hit.add(seen.get(p)); } else seen.set(p, r.id);
+    }
+    if (this.planner === "naive" && t > 0) {
+      const prev = new Map(); for (const r of this.robots) { const a = this.pos(r, t - 1), b = this.pos(r, t); if (a !== b) prev.set(a + "," + b, r.id); }
+      prev.forEach((id, key) => { const [a, b] = key.split(","); if (a < b && prev.has(b + "," + a)) { rec.conf++; this.hit.add(id); this.hit.add(prev.get(b + "," + a)); } });
+    }
+    this.collisions += rec.conf;
+    const fin = this.done.get(t);
+    if (fin) { for (const { o, r } of fin) { rec.done++; rec.dsum += t - o.assigned - o.ff; rec.dn++; const rb = this.robots[r]; rb.done++; if (rb.order === o) rb.order = null; this.note(rb, t, `Order #${o.id} done: pod back in its slot`); } this.totalDone += fin.length; this.done.delete(t); }
+    rec.rfail = this.failures - f0;
+    this.ring.push(rec); for (const key in rec) if (key !== "socMin") this.sum[key] += rec[key];
+    if (this.ring.length > WIN) { const old = this.ring.shift(); for (const key in old) if (key !== "socMin") this.sum[key] -= old[key]; }
+    if (t % 30 === 0) { const kp = this.kpis(); this.series.push({ t, thr: kp.thr, off: kp.off, backlog: this.pending.length, avail: kp.avail * 100 }); if (this.series.length > 121) this.series.shift(); }
+    if (t % 300 === 0 && t > 0 && this.planner === "pp") this.rt.prune(t - 1);
+    this.t++;
+  }
+  kpis() {
+    const s = this.sum, n = this.cfg.n, T = Math.max(1, s.ticks);
+    const socs = this.robots.map((r) => r.hp.soc);
+    const opH = s.avail / 3600;
+    return {
+      thr: s.done * 3600 / T, off: this.rate * 3600, util: s.busy / (n * T), tw: s.travel ? s.waiting / s.travel : 0,
+      wait: s.wn ? s.wsum / s.wn : 0, oldest: this.pending.length ? this.t - this.pending[0].created : 0, backlog: this.pending.length,
+      ms: s.calls ? s.ms / s.calls : 0, fail: s.calls ? s.fails / s.calls : 0, coll: this.collisions,
+      stBusy: s.svc / (this.open.length * T), delay: s.dn ? s.dsum / s.dn : 0, ticks: s.ticks,
+      avail: s.avail / (n * T), mtbf: s.rfail ? opH / s.rfail : null, mttr: s.rep ? s.repSum / s.rep : null, failures: s.rfail,
+      socAvg: socs.reduce((a, b) => a + b, 0) / socs.length, socMin: Math.min(...socs), charging: this.robots.filter((r) => this.state(r, this.t) === CHARGING).length,
+      openJobs: this.jobs.filter((j) => j.status !== "done").length, stuck: this.robots.filter((r) => r.stuck).length,
+    };
+  }
+}
+
+// ============================================================ missions
+const MISSIONS = [
+  { id: "m1", title: "Meet one robot", setup: { n: 1, load: 1.0, battery: false, faults: 0, planner: "pp", alloc: "fifo", stations: 19, chargers: 2, techs: 1 }, speed: 3,
+    concept: "A goods-to-person robot does one job over and over: drive under a shelf pod, lift it, bring it to a station where a person picks items, carry it back, put it down, go home. That loop is an <b>errand</b>. One tick of this clock is one second.",
+    tasks: [
+      { text: "Click the robot (or its row in the Robots table) to open it", check: (s, ui) => ui.selected !== null },
+      { text: "Watch its state change: to pod, lifting, to station, picking, returning", check: (s, ui) => ui.seenStates.size >= 5 },
+      { text: "Let it finish 3 orders", check: (s) => s.totalDone >= 3 },
+    ] },
+  { id: "m2", title: "Two robots, one aisle", setup: { n: 2, load: 1.2, battery: false, faults: 0, planner: "pp", alloc: "fifo", stations: 3, chargers: 2, techs: 1 }, speed: 4,
+    concept: "With two robots, routes can cross. The planner books every (cell, second) a robot will use in a <b>reservation table</b>; the second robot plans around those bookings, waiting or detouring. The open robot's route is drawn on the floor.",
+    tasks: [
+      { text: "Finish 6 orders with zero collisions", check: (s) => s.totalDone >= 6 && s.collisions === 0 },
+      { text: "Switch the planner to “Shortest path, ignore others” and spot a collision", check: (s, ui) => ui.seenNaiveCollision },
+      { text: "Switch back to space-time A*", check: (s, ui) => ui.seenNaiveCollision && s.planner === "pp" },
+    ] },
+  { id: "m3", title: "Who takes which order", setup: { n: 6, load: 1.3, battery: false, faults: 0, planner: "pp", alloc: "fifo", stations: 19, chargers: 2, techs: 1 }, speed: 4,
+    concept: "Orders now arrive faster than 6 robots can serve them, so a queue builds. <b>Dispatch</b> decides which free robot takes which waiting order. First-come-first-served is fair; nearest-pair and Hungarian cut empty driving but can leave far-away orders waiting.",
+    tasks: [
+      { text: "Run 10+ simulated minutes and pin the numbers", check: (s, ui) => ui.pins.some((p) => p.n === 6 && p.alloc === "fifo") },
+      { text: "Switch to Hungarian, run 10+ minutes, pin again", check: (s, ui) => ui.pins.some((p) => p.n === 6 && p.alloc === "hung") },
+      { text: "Compare tasks/h and the oldest order in the table below", check: (s, ui) => ui.pins.some((p) => p.n === 6 && p.alloc === "fifo") && ui.pins.some((p) => p.n === 6 && p.alloc === "hung") },
+    ] },
+  { id: "m4", title: "Find the capacity", setup: { n: 10, load: 0.6, battery: false, faults: 0, planner: "pp", alloc: "fifo", stations: 19, chargers: 2, techs: 1 }, speed: 5,
+    concept: "<b>Offered load ρ</b> compares work arriving with what the fleet can do. Below 1 the queue drains; above 1 it grows forever. Close to 1, small bursts already cause long waits: that is why real fleets keep spare capacity.",
+    tasks: [
+      { text: "Raise the load until the backlog starts to climb", check: (s) => s.cfg.load >= 1.0 && s.pending.length >= 15 },
+      { text: "Lower it again until the backlog drains below 3", check: (s, ui) => ui.sawOverload && s.pending.length < 3 && s.cfg.load < 1.0 },
+    ] },
+  { id: "m5", title: "Power and charging", setup: { n: 12, load: 0.8, battery: true, faults: 0, planner: "pp", alloc: "fifo", stations: 19, chargers: 1, techs: 1 }, speed: 5,
+    concept: "Real robots run on batteries. Below the threshold a robot stops taking orders and drives to a charger. Chargers are shared: with too few, robots queue at them and fleet capacity drops even though nobody is broken.",
+    tasks: [
+      { text: "Watch a robot go to the charger (yellow)", check: (s) => s.robots.some((r) => s.state(r, s.t) === CHARGING) },
+      { text: "Open a robot and read its battery graph", check: (s, ui) => ui.selected !== null && ui.inspectedBattery },
+      { text: "Add chargers until throughput recovers, then pin it", check: (s, ui) => s.cfg.chargers >= 3 && ui.pins.some((p) => p.battery && p.chargers >= 3) },
+    ] },
+  { id: "m6", title: "Breakdowns and repairs", setup: { n: 15, load: 0.8, battery: true, faults: 12, planner: "pp", alloc: "fifo", stations: 19, chargers: 3, techs: 1 }, speed: 5,
+    concept: "Parts wear out. A failed robot stops where it is, blocking the aisle, and waits for a technician. <b>MTBF</b> (mean time between failures) and <b>MTTR</b> (mean time to repair) set <b>availability</b> ≈ MTBF / (MTBF + MTTR).",
+    tasks: [
+      { text: "Open a failed robot (red) and read its fault", check: (s, ui) => ui.inspectedFailed },
+      { text: "Prioritise a repair job from the robot panel", check: (s, ui) => ui.prioritised },
+      { text: "Add a technician and get 3 repairs done", check: (s) => s.cfg.techs >= 2 && s.repairsDone >= 3 },
+      { text: "Schedule a service for a worn robot before it fails", check: (s, ui) => ui.scheduledService },
+    ] },
+  { id: "m7", title: "Scale up", setup: { n: 40, load: 0.9, battery: true, faults: 4, planner: "pp", alloc: "hung", stations: 19, chargers: 4, techs: 2 }, speed: 5,
+    concept: "Now grow the fleet. Throughput per robot falls once aisles, stations, chargers or technicians saturate. Find which one limits you first: the insights panel and the KPIs tell you.",
+    tasks: [
+      { text: "Pin the 40-robot numbers after 10+ minutes", check: (s, ui) => ui.pins.some((p) => p.n === 40) },
+      { text: "Scale to 100+ robots and pin again", check: (s, ui) => ui.pins.some((p) => p.n >= 100) },
+      { text: "Open any robot at 100+ robots and check its health", check: (s, ui) => s.cfg.n >= 100 && ui.selected !== null },
+    ] },
+  { id: "free", title: "Free play", setup: null, speed: null, concept: "Every knob is yours. Mix health, demand, dispatch and fleet size, pin what you find, and open any robot at any moment.", tasks: [] },
+];
+
+// ============================================================ UI state
+const cfg = { n: 1, load: 1.0, service: 10, stations: 19, alloc: "fifo", k: 5, planner: "pp", battery: false, chargers: 2, chargeAt: 25, faults: 0, techs: 1 };
+let sim = new Sim(cfg);
+const SPEEDS = [1, 2, 5, 10, 20, 40, 80];
+let speedIdx = 3, playing = !window.matchMedia("(prefers-reduced-motion: reduce)").matches, acc = 0;
+const ui = { faultPick: "motorL", selected: null, follow: true, tab: "fleet", seenStates: new Set(), seenNaiveCollision: false, sawOverload: false, inspectedBattery: false, inspectedFailed: false, prioritised: false, scheduledService: false, pins: [], mission: 0, done: {}, part: "battery" };
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+try { const s = JSON.parse(localStorage.getItem("fleetsim-academy") || "{}"); ui.done = s.done || {}; ui.pins = s.pins || []; } catch (e) { /* storage blocked */ }
+const save = () => { try { localStorage.setItem("fleetsim-academy", JSON.stringify({ done: ui.done, pins: ui.pins })); } catch (e) { /* storage blocked */ } };
+const fmtT = (t) => { const h = (t / 3600) | 0, m = ((t % 3600) / 60) | 0, s = t % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`; };
+const fmtS = (s) => s == null ? "–" : s < 120 ? `${Math.round(s)} s` : s < 7200 ? `${(s / 60).toFixed(1)} min` : `${(s / 3600).toFixed(1)} h`;
+
+// ============================================================ pros / cons
+const PC = {
+  pp: { p: ["Collision-free by construction: every move is booked before it happens.", "Fast: one search per errand, a few ms even with 100+ robots."], m: ["Incomplete: sometimes no route is found and the robot waits (blocked).", "Robots planned later take the detours."] },
+  naive: { p: ["Each robot takes its individually shortest route.", "Nothing to coordinate."], m: ["Robots collide or drive through each other.", "Unusable on a real floor: this is why fleets need MAPF."] },
+  fifo: { p: ["Fair: the oldest order goes first.", "No batching delay."], m: ["May send a robot across the floor for an old order.", "Under a backlog, more empty driving."] },
+  near: { p: ["Captures most travel savings with a simple sort.", "No batching delay."], m: ["Ignores order age: far-away orders can starve.", "Locally greedy."] },
+  hung: { p: ["Minimum total travel per batch: provably optimal matching.", "Shines with a backlog."], m: ["Every order waits up to k s for the next solve.", "Favours near orders; tail waits can grow."] },
+};
+function renderPC() {
+  const f = (o) => o.p.map((x) => `<div class="p">${x}</div>`).join("") + o.m.map((x) => `<div class="m">${x}</div>`).join("");
+  $("pc-planner").innerHTML = f(PC[cfg.planner]); $("pc-alloc").innerHTML = f(PC[cfg.alloc]); $("k-k-wrap").hidden = cfg.alloc !== "hung";
+}
+
+// ============================================================ missions UI
+function renderMissionList() {
+  $("mlist").innerHTML = MISSIONS.map((m, i) => `<button type="button" data-m="${i}" aria-current="${i === ui.mission}"><span class="no">${m.id === "free" ? "∞" : i + 1}</span><span>${esc(m.title)}</span><span class="ok">${ui.done[m.id] ? "✓" : ""}</span></button>`).join("");
+  document.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => startMission(+b.dataset.m)));
+}
+function renderMissionCard() {
+  const m = MISSIONS[ui.mission];
+  const tasks = m.tasks.map((tk) => { const ok = safeCheck(tk); return `<li class="${ok ? "done" : ""}"><span class="box">${ok ? "✓" : ""}</span><span>${esc(tk.text)}</span></li>`; }).join("");
+  const all = m.tasks.length && m.tasks.every(safeCheck);
+  if (all && !ui.done[m.id]) { ui.done[m.id] = true; save(); renderMissionList(); }
+  const next = ui.mission < MISSIONS.length - 1 ? `<button type="button" class="${all ? "primary" : ""}" id="m-next">${all ? "Next mission" : "Skip to next"}</button>` : "";
+  const html = `<h3>${esc(m.title)}</h3><p class="concept">${m.concept}</p>${tasks ? `<ul class="tasks">${tasks}</ul>` : ""}<div class="actions">${m.setup ? `<button type="button" id="m-reset">Restart mission</button>` : ""}${next}</div>`;
+  if ($("mcard").dataset.html !== html) { $("mcard").innerHTML = html; $("mcard").dataset.html = html;
+    $("m-next")?.addEventListener("click", () => startMission(ui.mission + 1));
+    $("m-reset")?.addEventListener("click", () => startMission(ui.mission)); }
+}
+function safeCheck(tk) { try { return !!tk.check(sim, ui); } catch (e) { return false; } }
+function startMission(i) {
+  ui.mission = i; const m = MISSIONS[i];
+  if (m.setup) { Object.assign(cfg, m.setup); if (m.speed != null) { speedIdx = m.speed; } syncControls(); restart(); }
+  ui.seenStates = new Set(); ui.seenNaiveCollision = false; ui.sawOverload = false; ui.inspectedBattery = false; ui.inspectedFailed = false; ui.prioritised = false; ui.scheduledService = false;
+  selectRobot(null); renderMissionList(); renderMissionCard();
+}
+
+// ============================================================ KPIs, insights, tables
+function renderKpis() {
+  const k = sim.kpis(), warm = k.ticks < 180, n = cfg.n;
+  const tiles = [
+    ["Throughput", Math.round(k.thr), "tasks / h", k.thr < 0.8 * k.off && k.backlog > n ? "warn" : ""],
+    ["Offered", Math.round(k.off), "orders / h", ""],
+    ["Utilization", Math.round(k.util * 100), "% on orders", k.util > 0.97 ? "warn" : ""],
+    ["Backlog", k.backlog, "orders waiting", k.backlog > 2 * n + 5 ? "bad" : k.backlog > n / 2 + 3 ? "warn" : ""],
+    ["Oldest order", fmtS(k.oldest), "waiting", k.oldest > 600 ? "bad" : k.oldest > 180 ? "warn" : ""],
+    ["Travel-wait", (k.tw * 100).toFixed(1), "% of travel", k.tw > 0.08 ? "bad" : k.tw > 0.04 ? "warn" : ""],
+    ["Availability", Math.round(k.avail * 100), "% not broken", k.avail < 0.85 ? "bad" : k.avail < 0.95 ? "warn" : "good"],
+    ["MTBF", k.mtbf == null ? "–" : k.mtbf.toFixed(1), "robot-h / failure", ""],
+    ["MTTR", k.mttr == null ? "–" : (k.mttr / 60).toFixed(1), "min / repair", k.mttr > 900 ? "warn" : ""],
+    ["Battery", cfg.battery ? Math.round(k.socAvg) : "off", cfg.battery ? `% avg · ${k.charging} charging` : "ideal", cfg.battery && k.socMin < 12 ? "bad" : ""],
+    ["Repairs", k.openJobs, "jobs open", k.openJobs > cfg.techs * 2 ? "bad" : k.openJobs > cfg.techs ? "warn" : ""],
+    ["Collisions", k.coll, "since start", k.coll > 0 ? "bad" : "good"],
+  ];
+  $("kpis").innerHTML = tiles.map(([nm, v, u, cls]) => `<div class="kpi ${warm && !["Collisions", "Backlog", "Offered", "Battery", "Repairs"].includes(nm) ? "" : cls}"><div class="k">${nm}</div><div class="v">${warm && ["Throughput", "Utilization", "Travel-wait", "Availability"].includes(nm) ? "…" : v}</div><div class="u">${u}</div></div>`).join("");
+  return k;
+}
+function insights(k) {
+  const out = [], rho = cfg.load, n = cfg.n;
+  if (k.ticks < 180) return [["trade", "Warming up", "Numbers settle over the first simulated minutes."]];
+  const ser = sim.series, slope = ser.length > 12 ? (ser[ser.length - 1].backlog - ser[ser.length - 13].backlog) / 6 : 0;
+  if (cfg.planner === "naive" && k.coll > 0) out.push(["minus", "Collisions", `${k.coll} collisions. Shortest paths ignore other robots; space-time A* keeps this at 0.`]);
+  if (k.avail < 0.92) out.push(["minus", "Availability", `${Math.round((1 - k.avail) * 100)}% of robot time is lost to faults and repairs. ${k.openJobs > cfg.techs ? "Jobs are queueing: add a technician." : "Schedule service for worn robots before they fail."}`]);
+  if (k.stuck > 0) out.push(["trade", "Blocked robots", `${k.stuck} robot(s) are waiting because a stopped robot blocks their route. Fast repairs clear the aisle.`]);
+  if (cfg.battery && (k.socMin < 12 || (k.charging >= sim.chargers.length && sim.robots.some((r) => sim.state(r, sim.t) === TO_CHARGER)))) out.push(["minus", "Chargers", `Robots are queueing for ${sim.chargers.length} charger(s). Add chargers or charge earlier.`]);
+  if (rho > 1.02 && slope > 0.3) out.push(["minus", "Unstable queue", `Load ρ = ${rho.toFixed(2)} is above capacity: the backlog grows ~${slope.toFixed(1)} orders/min.`]);
+  if (k.stBusy > 0.75) out.push(["minus", "Stations", `Pick stations are busy ${Math.round(k.stBusy * 100)}% of the time; more robots won't help.`]);
+  if (k.tw > 0.05) out.push(["minus", "Congestion", `Robots spend ${(k.tw * 100).toFixed(1)}% of travel time waiting for others.`]);
+  if (cfg.alloc === "hung" && k.backlog > 5) out.push(["plus", "Choice pays off", `${k.backlog} waiting orders give the Hungarian solver real choice.`]);
+  if (cfg.alloc !== "fifo" && k.oldest > Math.max(300, 4 * k.wait)) out.push(["trade", "Fairness", `The oldest order has waited ${fmtS(k.oldest)}; travel-minimising dispatch skips far orders.`]);
+  if (!cfg.battery && !cfg.faults && n >= 5) out.push(["trade", "Ideal world", "No batteries, no faults. Real fleets lose 10–20% of capacity to charging and repairs: switch on Health."]);
+  if (k.util < 0.45 && k.backlog === 0 && n > 3) out.push(["trade", "Oversized fleet", `Robots are on orders only ${Math.round(k.util * 100)}% of the time.`]);
+  if (!out.length) out.push(["plus", "Healthy flow", `Throughput ${Math.round(k.thr)} tasks/h tracks demand with short waits.`]);
+  return out.slice(0, 4);
+}
+const pill = (s) => `<span class="pill" style="background:var(${STATE_VAR[s]})">${STATE_SHORT[s]}</span>`;
+function robotHealthScore(r) { const hp = r.hp; return Math.round(100 * Math.min(1 - hp.wearL, 1 - hp.wearR, 1 - hp.liftWear, hp.batHealth / 100)); }
+function socBar(v) { const c = v < 15 ? "--bad" : v < 35 ? "--warn" : "--good"; return `<span class="socbar"><i style="width:${Math.max(0, Math.min(100, v))}%;background:var(${c})"></i></span>`; }
+function renderTables() {
+  const rows = sim.robots.slice().sort((a, b) => (b.failed - a.failed) || (b.stuck - a.stuck) || (robotHealthScore(a) - robotHealthScore(b))).slice(0, 200);
+  $("robot-table").innerHTML = `<thead><tr><th>#</th><th>State</th><th>Battery</th><th class="n">Health</th><th class="n">Done</th></tr></thead><tbody>` + rows.map((r) => {
+    const s = sim.state(r, sim.t);
+    return `<tr class="click" data-r="${r.id}" tabindex="0"><td class="n">${r.id + 1}</td><td>${pill(s)}</td><td>${cfg.battery ? socBar(r.hp.soc) + ` <span class="mono">${Math.round(r.hp.soc)}%</span>` : "–"}</td><td class="n">${robotHealthScore(r)}</td><td class="n">${r.done}</td></tr>`;
+  }).join("") + "</tbody>";
+  document.querySelectorAll("#robot-table [data-r]").forEach((tr) => { const go = () => selectRobot(+tr.dataset.r); tr.addEventListener("click", go); tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }); });
+  const jobs = sim.jobs.filter((j) => j.status !== "done").concat(sim.jobs.filter((j) => j.status === "done").slice(-5).reverse());
+  $("tech-note").textContent = `${cfg.techs} technician${cfg.techs > 1 ? "s" : ""}`;
+  $("jobs-table").innerHTML = jobs.length ? `<thead><tr><th>Job</th><th>Robot</th><th>Part</th><th>Status</th><th class="n">Age</th></tr></thead><tbody>` + jobs.map((j) => `<tr class="click" data-r="${j.robot}"><td class="n">${j.id}${j.priority ? " ★" : ""}</td><td class="n">${j.robot + 1}</td><td>${esc(COMP_NAME[j.comp])}</td><td>${j.status}</td><td class="n">${fmtS((j.status === "done" ? j.end : sim.t) - j.created)}</td></tr>`).join("") + "</tbody>" : `<tbody><tr><td class="empty">No repair jobs. Turn on Faults in Health to see breakdowns.</td></tr></tbody>`;
+  document.querySelectorAll("#jobs-table [data-r]").forEach((tr) => tr.addEventListener("click", () => selectRobot(+tr.dataset.r)));
+}
+
+// ============================================================ robot inspector
+function partColor(v) { return v >= 0.7 ? css("--good") : v >= 0.4 ? css("--warn") : css("--bad"); }
+function schematic(r) {
+  const hp = r.hp, sel = ui.part;
+  const parts = {
+    battery: cfg.battery ? Math.min(hp.soc / 100 + 0.3, hp.batHealth / 100) : hp.batHealth / 100,
+    motorL: Math.min(1 - hp.wearL, hp.tempL > HEALTH.overheat ? 0.2 : 1), motorR: Math.min(1 - hp.wearR, hp.tempR > HEALTH.overheat ? 0.2 : 1),
+    lift: 1 - hp.liftWear, lidar: hp.lidarOk ? 1 : 0, encoder: hp.encOk ? 1 : 0,
+  };
+  const fault = r.job ? r.job.comp : null;
+  const part = (id, x, y, w, h, label, extra = "") => `<g class="part" data-part="${id}" tabindex="0" role="button" aria-label="${label}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${partColor(parts[id] ?? 1)}" fill-opacity="${sel === id ? 0.55 : 0.28}" stroke="${fault === id || (fault === "depleted" && id === "battery") ? css("--bad") : partColor(parts[id] ?? 1)}" stroke-width="${sel === id || fault === id ? 3 : 1.5}"/>${extra}<text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="11" font-family="Archivo, sans-serif" font-weight="600" fill="${css("--fg")}">${label}</text></g>`;
+  return `<svg viewBox="0 0 320 210" role="img" aria-label="Robot components, coloured by health">
+    <rect x="76" y="20" width="168" height="170" rx="18" fill="none" stroke="${css("--muted")}" stroke-width="2"/>
+    <text x="160" y="14" text-anchor="middle" font-size="10" font-family="JetBrains Mono, monospace" fill="${css("--muted")}">front ▲</text>
+    ${part("lidar", 130, 28, 60, 26, "Lidar")}
+    ${part("lift", 120, 64, 80, 40, "Lift")}
+    ${part("battery", 110, 114, 100, 40, "Battery")}
+    ${part("motorL", 6, 70, 62, 70, "Motor L")}
+    ${part("motorR", 252, 70, 62, 70, "Motor R")}
+    ${part("encoder", 120, 162, 80, 22, "Encoders")}
+  </svg>`;
+}
+function partDetail(r) {
+  const hp = r.hp, p = ui.part, pct = (v) => `${Math.round(v * 100)}%`;
+  const rows = {
+    battery: [["Charge", cfg.battery ? `${hp.soc.toFixed(1)}%` : "off (ideal)"], ["Pack health", `${hp.batHealth.toFixed(1)}%`], ["Charges below", `${cfg.chargeAt}%`], ["Repair if failed", "6 min pack swap"]],
+    motorL: [["Temperature", `${hp.tempL.toFixed(1)} °C (fault risk above ${HEALTH.overheat})`], ["Wear", pct(hp.wearL)], ["Odometer", `${(hp.odo / 1000).toFixed(2)} km`], ["Repair if failed", "5 min motor swap"]],
+    motorR: [["Temperature", `${hp.tempR.toFixed(1)} °C (fault risk above ${HEALTH.overheat})`], ["Wear", pct(hp.wearR)], ["Odometer", `${(hp.odo / 1000).toFixed(2)} km`], ["Repair if failed", "5 min motor swap"]],
+    lift: [["Lift cycles", hp.lifts], ["Wear", pct(hp.liftWear)], ["Repair if failed", "4 min"]],
+    lidar: [["Status", hp.lidarOk ? "OK" : "FAULT"], ["Repair if failed", "2 min recalibration"]],
+    encoder: [["Status", hp.encOk ? "OK" : "FAULT"], ["Repair if failed", "1.5 min"]],
+  }[p];
+  return `<dl class="facts">${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>`;
+}
+function spark(arr, r, lo, hi, color, label, unit) {
+  const n = Math.min(TEL, sim.t), pts = [];
+  for (let i = 0; i < n; i++) { const t = sim.t - n + i, v = arr[t % TEL]; pts.push(`${(i / Math.max(1, TEL - 1) * 300 + (TEL - n) / TEL * 300).toFixed(1)},${(52 - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * 44).toFixed(1)}`); }
+  const last = n ? arr[(sim.t - 1) % TEL] : 0;
+  return `<div><div class="eyebrow" style="display:flex;justify-content:space-between"><span>${label}</span><span class="mono" style="color:var(--fg)">${last.toFixed(1)} ${unit}</span></div><svg class="spark" viewBox="0 0 300 56" preserveAspectRatio="none" style="height:46px"><line x1="0" x2="300" y1="52" y2="52" stroke="${css("--line")}"/><polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></div>`;
+}
+function renderInspector() {
+  const pane = $("robot-pane");
+  if (ui.selected === null) { pane.innerHTML = `<div class="panel"><p class="empty">Click any robot on the floor, or a row in the Fleet tab, to open it here: its job, route, components, battery and motor telemetry, repair job and history.</p></div>`; return; }
+  const r = sim.robots[ui.selected], s = sim.state(r, sim.t), t = sim.t;
+  ui.seenStates.add(s); if (s === FAILED || s === REPAIR) ui.inspectedFailed = true;
+  if (ui.part === "battery") ui.inspectedBattery = true;
+  const o = r.order, rem = r.path.length - (t - r.t0) - 1;
+  const goal = r.legs ? (r.remainingGoal = sim.remaining(r, t)[0]) : null;
+  const job = r.job;
+  const head = `<div class="panel"><div class="insp-head"><h2>Robot ${r.id + 1}</h2>${pill(s)}<div class="actions"><button type="button" id="i-follow" aria-pressed="${ui.follow}">Follow camera</button><button type="button" id="i-back">Back to fleet</button></div></div>
+    <p style="margin:0.35rem 0 0.5rem;font-size:0.9rem">${STATE_TEXT[s]}.</p>
+    <dl class="facts"><dt>Position</dt><dd>row ${cellRC(sim.pos(r, t))[0]}, col ${cellRC(sim.pos(r, t))[1]}</dd>
+    <dt>Order</dt><dd>${o ? `#${o.id} · pod ${cellRC(o.pod).join(",")} → station ${STATIONS.indexOf(o.station) + 1}` : "none"}</dd>
+    <dt>Next goal</dt><dd>${goal ? `${goal.tag} at ${cellRC(goal.goal).join(",")}` : r.failed ? "–" : "home"}</dd>
+    <dt>Route left</dt><dd>${rem > 0 ? `${rem} s booked` : "parked"}</dd>
+    <dt>Finishes order</dt><dd>${o && o.compT != null ? `in ${fmtS(o.compT - t)}` : "–"}</dd>
+    <dt>Orders done</dt><dd>${r.done} · waited ${r.waits} s for others</dd></dl></div>`;
+  const repair = job ? `<div class="panel" style="border:1.5px solid var(--bad)"><h3>Repair job #${job.id} ${job.priority ? "★ priority" : ""}</h3><dl class="facts"><dt>Part</dt><dd>${COMP_NAME[job.comp]}</dd><dt>Status</dt><dd>${job.status}${job.status === "en route" ? ` · technician arrives in ${fmtS(job.arrive - t)}` : job.status === "repairing" ? ` · done in ${fmtS(job.end - t)}` : ` · ${sim.jobs.filter((j) => j.status === "waiting" && j.created < job.created).length} job(s) ahead`}</dd><dt>Down for</dt><dd>${fmtS(t - job.created)}</dd></dl>${job.status === "waiting" && !job.priority ? `<div class="actions" style="margin-top:0.4rem"><button type="button" class="primary" id="i-prio">Prioritise this repair</button></div>` : ""}</div>` : "";
+  const comps = `<div class="panel schematic"><h3>Components <span class="eyebrow">click a part</span></h3>${schematic(r)}${partDetail(r)}</div>`;
+  const tel = `<div class="panel"><h3>Telemetry <span class="eyebrow">last 10 min</span></h3>${cfg.battery ? spark(r.tel.soc, r, 0, 100, css("--charge"), "Battery", "%") : ""}${spark(r.tel.tl, r, 20, 90, css("--accent"), "Motor L temperature", "°C")}${spark(r.tel.tr, r, 20, 90, css("--accent-ink"), "Motor R temperature", "°C")}</div>`;
+  const acts = `<div class="panel"><h3>Actions</h3><div class="actions"><button type="button" id="i-service" ${r.wantService || r.failed ? "disabled" : ""}>${r.wantService ? "Service scheduled" : "Schedule service"}</button><select id="i-fault" aria-label="Fault to inject">${[["motorL", "Left motor"], ["motorR", "Right motor"], ["lift", "Lift"], ["lidar", "Lidar"], ["encoder", "Encoders"], ["battery", "Battery pack"]].map(([v, l]) => `<option value="${v}" ${ui.faultPick === v ? "selected" : ""}>${l}</option>`).join("")}</select><button type="button" class="danger" id="i-inject" ${r.failed ? "disabled" : ""}>Inject fault</button></div><p class="why" style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0">Service stops the robot at home after its current job and resets wear. An injected fault stops it where it stands.</p></div>`;
+  const log = `<div class="panel"><h3>History</h3><ul class="log">${r.log.slice(0, 12).map((e) => `<li><span class="t">${fmtT(e.t)}</span><span>${esc(e.text)}</span></li>`).join("") || "<li><span class='t'></span><span>Nothing yet.</span></li>"}</ul></div>`;
+  pane.innerHTML = head + repair + comps + tel + acts + log;
+  $("i-back").onclick = () => selectRobot(null);
+  $("i-follow").onclick = () => { ui.follow = !ui.follow; ui.blend = 0; renderInspector(); };
+  $("i-prio") && ($("i-prio").onclick = () => { job.priority = true; ui.prioritised = true; sim.note(r, sim.t, `Repair job #${job.id} prioritised`); renderInspector(); });
+  $("i-service").onclick = () => { sim.scheduleService(r, sim.t); ui.scheduledService = true; renderInspector(); };
+  $("i-fault").onchange = (e) => { ui.faultPick = e.target.value; };
+  $("i-inject").onclick = () => { sim.fail(r, sim.t, $("i-fault").value); renderInspector(); };
+  pane.querySelectorAll("[data-part]").forEach((g) => { const go = () => { ui.part = g.dataset.part; renderInspector(); }; g.addEventListener("click", go); g.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }); });
+}
+function setTab(tab) {
+  ui.tab = tab; $("tab-fleet").setAttribute("aria-pressed", String(tab === "fleet")); $("tab-robot").setAttribute("aria-pressed", String(tab === "robot"));
+  $("fleet-pane").hidden = tab !== "fleet"; $("robot-pane").hidden = tab !== "robot";
+}
+function selectRobot(id) {
+  ui.selected = id; ui.blend = 0; if (id !== null) { ui.follow = true; setTab("robot"); } else { setTab("fleet"); if (three) setCamera(three, view); }
+  renderInspector();
+}
+
+// ============================================================ trend chart
+function drawTrend() {
+  const cv = $("trend"), dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 340, h = 120;
+  cv.width = w * dpr; cv.height = h * dpr; const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const s = sim.series; if (s.length < 2) return;
+  const L = 34, R = w - 30, T = 6, B = h - 16;
+  const ymax = Math.max(20, ...s.map((p) => Math.max(p.thr, p.off))) * 1.1, bmax = Math.max(10, ...s.map((p) => p.backlog)) * 1.15;
+  const x = (i) => L + ((i + 120 - (s.length - 1)) / 120) * (R - L);
+  g.font = `10px ${css("--font-mono")}`; g.fillStyle = css("--muted"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  for (let q = 0; q <= 2; q++) { const yy = B - q / 2 * (B - T); g.beginPath(); g.moveTo(L, yy); g.lineTo(R, yy); g.stroke(); g.textAlign = "right"; g.fillText(Math.round(q / 2 * ymax), L - 4, yy + 3); g.textAlign = "left"; g.fillText(Math.round(q / 2 * bmax), R + 4, yy + 3); }
+  g.textAlign = "left"; g.fillText("−60 min", L, h - 3); g.textAlign = "right"; g.fillText("now", R, h - 3);
+  const line = (key, max, color, dash, width) => { g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash); g.beginPath(); s.forEach((p, i) => { const yy = B - (p[key] / max) * (B - T); i ? g.lineTo(x(i), yy) : g.moveTo(x(i), yy); }); g.stroke(); g.setLineDash([]); };
+  line("off", ymax, css("--muted"), [4, 3], 1.3); line("avail", 100, css("--good"), [2, 2], 1.2); line("backlog", bmax, css("--blue"), [], 1.3); line("thr", ymax, css("--accent"), [], 2.1);
+}
+
+// ============================================================ renderers
+const robotColorVar = (r, s, now) => sim.hit.has(r.id) ? "--bad" : (s === FAILED && Math.floor(now / 400) % 2) ? "--shelf" : STATE_VAR[s];
+let view = "iso", three = null;
+function init3D() {
+  if (!window.THREE) return null;
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: $("c3d"), antialias: true }); } catch (e) { return null; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(40, 1, 0.3, 600);
+  const controls = THREE.OrbitControls ? new THREE.OrbitControls(camera, renderer.domElement) : null;
+  if (controls) { controls.target.set(W / 2, 0, H / 2); controls.maxPolarAngle = Math.PI * 0.49; controls.enableDamping = true; }
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445044, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-40, 90, 30); scene.add(sun);
+  const tex = document.createElement("canvas"); tex.width = W * 8; tex.height = H * 8;
+  const floorTex = new THREE.CanvasTexture(tex); floorTex.magFilter = THREE.NearestFilter; floorTex.minFilter = THREE.LinearFilter;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshLambertMaterial({ map: floorTex }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(W / 2, 0, H / 2); scene.add(floor);
+  const dummy = new THREE.Object3D();
+  const shelfCells = []; for (let i = 0; i < NC; i++) if (!FREE[i]) shelfCells.push(i);
+  const shelfMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+  const shelves = new THREE.InstancedMesh(new THREE.BoxGeometry(0.94, 0.55, 0.94), shelfMat, shelfCells.length);
+  shelfCells.forEach((c, k) => { dummy.position.set(c % W + 0.5, 0.275, ((c / W) | 0) + 0.5); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); shelves.setMatrixAt(k, dummy.matrix); });
+  scene.add(shelves);
+  const stMat = new THREE.MeshLambertMaterial({ color: 0x3a9a4c });
+  const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 0.18, 1.8, 10), stMat, STATIONS.length);
+  STATIONS.forEach((c, k) => { dummy.position.set(c % W + 0.15, 0.9, ((c / W) | 0) + 0.5); dummy.updateMatrix(); posts.setMatrixAt(k, dummy.matrix); });
+  scene.add(posts);
+  const chMat = new THREE.MeshLambertMaterial({ color: 0xd6a400 });
+  const chargers = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 1.1, 0.3), chMat, CHARGERS.length);
+  scene.add(chargers);
+  const MAXR = 200;
+  const robots = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.5, 0.9), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXR);
+  robots.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const pods = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.8, 0.7), new THREE.MeshLambertMaterial({ color: 0x6f93b8 }), MAXR);
+  pods.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < MAXR; i++) robots.setColorAt(i, new THREE.Color(0xffffff));
+  scene.add(robots); scene.add(pods);
+  const techs = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22, 0.22, 1.5, 10), new THREE.MeshLambertMaterial({ color: 0x8a4fbf }), 5);
+  techs.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(techs);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.9, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
+  const pathGeo = new THREE.BufferGeometry(); pathGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 1200), 3));
+  const pathLine = new THREE.Line(pathGeo, new THREE.LineBasicMaterial({ color: 0xd9680a })); pathLine.visible = false; scene.add(pathLine);
+  const t3 = { renderer, scene, camera, controls, tex, floorTex, shelfMat, stMat, chMat, robots, pods, techs, chargers, ring, pathLine, pathGeo, dummy, podMat: pods.material, camGoal: null };
+  theme3D(t3); setCamera(t3, "iso");
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener("pointerup", (e) => {
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+    const rect = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera); const hit = ray.intersectObject(robots)[0];
+    if (hit && hit.instanceId != null && hit.instanceId < sim.robots.length) selectRobot(hit.instanceId);
+  });
+  return t3;
+}
+function theme3D(t3) {
+  const g = t3.tex.getContext("2d"), s = 8;
+  const cols = { ".": css("--floor"), S: css("--pod"), E: css("--floor"), "@": css("--shelf") };
+  for (let i = 0; i < NC; i++) { g.fillStyle = cols[CH(i)]; g.fillRect((i % W) * s, ((i / W) | 0) * s, s, s); }
+  g.fillStyle = css("--station");
+  for (const st of STATIONS) { g.globalAlpha = sim.open.includes(st) ? 1 : 0.25; g.fillRect((st % W) * s, ((st / W) | 0) * s, s, s); }
+  g.fillStyle = css("--charge");
+  for (const ch of CHARGERS) { g.globalAlpha = sim.chargers.includes(ch) ? 0.9 : 0.15; g.fillRect((ch % W) * s, ((ch / W) | 0) * s, s, s); }
+  g.globalAlpha = 1; g.fillStyle = css("--repair"); g.fillRect((TECH_BASE % W) * s, ((TECH_BASE / W) | 0) * s, s, s);
+  g.strokeStyle = css("--line"); g.globalAlpha = 0.35; g.lineWidth = 1;
+  for (let c = 0; c <= W; c++) { g.beginPath(); g.moveTo(c * s, 0); g.lineTo(c * s, H * s); g.stroke(); }
+  for (let r = 0; r <= H; r++) { g.beginPath(); g.moveTo(0, r * s); g.lineTo(W * s, r * s); g.stroke(); }
+  g.globalAlpha = 1; t3.floorTex.needsUpdate = true;
+  t3.scene.background = new THREE.Color(css("--panel"));
+  t3.shelfMat.color.set(css("--shelf") === "#0b0d0c" ? "#303632" : "#5d655f");
+  t3.stMat.color.set(css("--station")); t3.podMat.color.set(css("--podbox")); t3.chMat.color.set(css("--charge"));
+  const d = t3.dummy; let k = 0;
+  CHARGERS.forEach((c) => { const on = sim.chargers.includes(c); d.position.set(c % W + 0.5, 0.55, ((c / W) | 0) + 0.15); d.scale.set(1, on ? 1 : 0.0001, 1); d.rotation.set(0, 0, 0); d.updateMatrix(); t3.chargers.setMatrixAt(k++, d.matrix); });
+  t3.chargers.instanceMatrix.needsUpdate = true;
+}
+function setCamera(t3, v) {
+  const cam = t3.camera; t3.camGoal = null;
+  if (v === "top") cam.position.set(W / 2, 118, H / 2 + 0.01); else cam.position.set(W / 2 - 14, 78, H + 30);
+  if (t3.controls) { t3.controls.target.set(W / 2, 0, H / 2 - 4); t3.controls.update(); } else cam.lookAt(W / 2, 0, H / 2);
+}
+function resize3D(t3) { const box = $("viewport"), w = box.clientWidth, h = box.clientHeight; t3.renderer.setSize(w, h, false); t3.camera.aspect = w / h; t3.camera.updateProjectionMatrix(); }
+const colorCache = new Map();
+function threeColor(v) { const k = v + css(v); let c = colorCache.get(k); if (!c) { c = new THREE.Color(css(v)); colorCache.set(k, c); } return c; }
+function robotXZ(r, T, frac) { const a = sim.pos(r, Math.max(0, T - 1)), b = sim.pos(r, T); const ax = a % W + 0.5, az = ((a / W) | 0) + 0.5, bx = b % W + 0.5, bz = ((b / W) | 0) + 0.5; return [ax + (bx - ax) * frac, az + (bz - az) * frac, a, b, ax, az, bx, bz]; }
+function techXZ(tech, frac) {
+  const job = tech.job; let cell = tech.cell, nxt = tech.cell;
+  if (job && job.status === "en route") { const k = Math.min(tech.path.length - 1, Math.max(0, sim.t - 1 - tech.depart)); cell = tech.path[k]; nxt = tech.path[Math.min(tech.path.length - 1, k + 1)]; }
+  const ax = cell % W + 0.5, az = ((cell / W) | 0) + 0.5, bx = nxt % W + 0.5, bz = ((nxt / W) | 0) + 0.5;
+  const off = job && job.status === "repairing" ? 0.6 : 0;
+  return [ax + (bx - ax) * frac + off, az + (bz - az) * frac];
+}
+function draw3D(frac, now, dt) {
+  const t3 = three, d = t3.dummy, T = sim.t; let n = 0;
+  for (const r of sim.robots) {
+    const [x, z, a, b, ax, az, bx, bz] = robotXZ(r, T, frac), s = sim.state(r, Math.max(0, T - 1));
+    d.position.set(x, 0.26, z); d.rotation.set(0, a !== b ? Math.atan2(bx - ax, bz - az) : 0, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+    t3.robots.setMatrixAt(n, d.matrix); t3.robots.setColorAt(n, threeColor(robotColorVar(r, s, now)));
+    const carry = s >= LIFT && s <= DROP, ph = s === LIFT || s === DROP ? 0.55 : 1;
+    d.position.set(x, 0.52 + 0.8 * ph / 2, z); d.rotation.set(0, 0, 0); d.scale.set(1, carry ? ph : 0.0001, 1); d.updateMatrix();
+    t3.pods.setMatrixAt(n, d.matrix); n++;
+  }
+  t3.robots.count = n; t3.pods.count = n;
+  t3.robots.instanceMatrix.needsUpdate = true; if (t3.robots.instanceColor) t3.robots.instanceColor.needsUpdate = true; t3.pods.instanceMatrix.needsUpdate = true;
+  let m = 0; for (const tech of sim.techs) { const [x, z] = techXZ(tech, frac); d.position.set(x, 0.75, z); d.scale.set(1, 1, 1); d.updateMatrix(); t3.techs.setMatrixAt(m++, d.matrix); }
+  t3.techs.count = m; t3.techs.instanceMatrix.needsUpdate = true; t3.techs.material.color.set(css("--repair"));
+  if (ui.selected !== null && sim.robots[ui.selected]) {
+    const r = sim.robots[ui.selected], [x, z] = robotXZ(r, T, frac);
+    t3.ring.visible = true; t3.ring.position.set(x, 0.03, z); t3.ring.material.color.set(css("--fg"));
+    const arr = t3.pathGeo.attributes.position.array; let q = 0; const k0 = Math.max(0, T - r.t0);
+    arr[q++] = x; arr[q++] = 0.08; arr[q++] = z;
+    for (let k = k0; k < r.path.length && q < arr.length - 3; k++) { const c = r.path[k]; arr[q++] = c % W + 0.5; arr[q++] = 0.08; arr[q++] = ((c / W) | 0) + 0.5; }
+    t3.pathGeo.setDrawRange(0, q / 3); t3.pathGeo.attributes.position.needsUpdate = true; t3.pathLine.visible = q > 3; t3.pathLine.material.color.set(css("--accent"));
+    if (ui.follow && t3.controls) { ui.blend = Math.min(1, (ui.blend || 0) + dt / 0.6); const a = ui.blend < 1 ? 1 - Math.exp(-8 * dt) : 1, tg = t3.controls.target; tg.x += (x - tg.x) * a; tg.z += (z - tg.z) * a; tg.y += (0 - tg.y) * a; t3.camera.position.lerp(new THREE.Vector3(x - 2.5, 5.5, z + 6), a); }
+  } else { t3.ring.visible = false; t3.pathLine.visible = false; }
+  if (t3.controls) t3.controls.update();
+  t3.renderer.render(t3.scene, t3.camera);
+}
+let bg2d = null;
+function build2D() {
+  const box = $("viewport"), cv = $("c2d"), dpr = window.devicePixelRatio || 1, w = box.clientWidth, h = box.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const cell = Math.min(w / W, h / H), ox = (w - cell * W) / 2, oy = (h - cell * H) / 2;
+  const off = document.createElement("canvas"); off.width = cv.width; off.height = cv.height;
+  const g = off.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = css("--panel"); g.fillRect(0, 0, w, h);
+  const cols = { ".": css("--floor"), S: css("--pod"), E: css("--floor"), "@": css("--shelf") };
+  for (let i = 0; i < NC; i++) { g.fillStyle = cols[CH(i)]; g.fillRect(ox + (i % W) * cell, oy + ((i / W) | 0) * cell, cell + 0.5, cell + 0.5); }
+  for (const st of STATIONS) { g.globalAlpha = sim.open.includes(st) ? 1 : 0.25; g.fillStyle = css("--station"); g.fillRect(ox + (st % W) * cell, oy + ((st / W) | 0) * cell, cell, cell); }
+  for (const ch of CHARGERS) { g.globalAlpha = sim.chargers.includes(ch) ? 1 : 0.15; g.fillStyle = css("--charge"); g.fillRect(ox + (ch % W) * cell, oy + ((ch / W) | 0) * cell, cell, cell); }
+  g.globalAlpha = 1; g.fillStyle = css("--repair"); g.fillRect(ox + (TECH_BASE % W) * cell, oy + ((TECH_BASE / W) | 0) * cell, cell, cell);
+  bg2d = { off, cell, ox, oy, dpr, w, h };
+}
+function draw2D(frac, now) {
+  if (!bg2d) build2D();
+  const cv = $("c2d"), g = cv.getContext("2d"), { off, cell, ox, oy, dpr } = bg2d, T = sim.t;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(off, 0, 0); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const P = (x, z) => [ox + x * cell, oy + z * cell];
+  if (ui.selected !== null && sim.robots[ui.selected]) {
+    const r = sim.robots[ui.selected]; g.strokeStyle = css("--accent"); g.lineWidth = Math.max(1.5, cell * 0.25); g.beginPath();
+    const [x0, z0] = robotXZ(r, T, frac); let [px, py] = P(x0, z0); g.moveTo(px, py);
+    for (let k = Math.max(0, T - r.t0); k < r.path.length; k++) { const c = r.path[k]; [px, py] = P(c % W + 0.5, ((c / W) | 0) + 0.5); g.lineTo(px, py); }
+    g.stroke();
+  }
+  for (const r of sim.robots) {
+    const [x, z] = robotXZ(r, T, frac), s = sim.state(r, Math.max(0, T - 1)); const [px, py] = P(x, z);
+    g.beginPath(); g.arc(px, py, Math.max(2, cell * 0.45), 0, Math.PI * 2); g.fillStyle = css(robotColorVar(r, s, now)); g.fill();
+    if (s >= LIFT && s <= DROP) { g.fillStyle = css("--podbox"); const q = Math.max(1.2, cell * 0.22); g.fillRect(px - q, py - q, 2 * q, 2 * q); }
+    if (r.id === ui.selected) { g.strokeStyle = css("--fg"); g.lineWidth = 2; g.beginPath(); g.arc(px, py, Math.max(5, cell * 0.85), 0, Math.PI * 2); g.stroke(); }
+  }
+  for (const tech of sim.techs) { const [x, z] = techXZ(tech, frac); const [px, py] = P(x, z); g.fillStyle = css("--repair"); g.fillRect(px - cell * 0.3, py - cell * 0.3, cell * 0.6, cell * 0.6); }
+}
+$("c2d").addEventListener("click", (e) => {
+  if (!bg2d) return; const rect = e.target.getBoundingClientRect(); const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let best = null, bd = Infinity;
+  for (const r of sim.robots) { const [x, z] = robotXZ(r, sim.t, 0); const px = bg2d.ox + x * bg2d.cell, py = bg2d.oy + z * bg2d.cell; const dd = Math.hypot(px - mx, py - my); if (dd < bd) { bd = dd; best = r.id; } }
+  if (best !== null && bd < Math.max(12, bg2d.cell * 1.5)) selectRobot(best);
+});
+
+// ============================================================ main loop
+let last = performance.now(), uiClock = 0, misClock = 0;
+function frame(now) {
+  const dt = Math.min(0.25, (now - last) / 1000); last = now;
+  if (playing) {
+    acc += dt * SPEEDS[speedIdx];
+    const t0 = performance.now();
+    while (acc >= 1 && performance.now() - t0 < 28) { sim.tick(); acc -= 1; }
+    if (acc > 3) acc = 1;
+  }
+  if (sim.planner === "naive" && sim.collisions > 0) ui.seenNaiveCollision = true;
+  if (sim.pending.length >= 15 && cfg.load >= 1.0) ui.sawOverload = true;
+  const frac = playing ? Math.min(acc, 0.999) : 0;
+  if (view === "2d" || !three) draw2D(frac, now); else draw3D(frac, now, dt);
+  uiClock += dt; misClock += dt;
+  if (uiClock > 0.3) { uiClock = 0; $("clock").textContent = fmtT(sim.t); if (ui.tab === "fleet") { const k = renderKpis(); $("insights").innerHTML = insights(k).map(([cls, tag, txt]) => `<li><span class="tag ${cls}">${tag}</span><span>${txt}</span></li>`).join(""); drawTrend(); renderTables(); } else renderInspector(); }
+  if (misClock > 0.5) { misClock = 0; renderMissionCard(); }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================ wiring
+function setView(v) {
+  view = v; ["iso", "top", "2d"].forEach((x) => $("v-" + x).setAttribute("aria-pressed", String(x === v)));
+  const flat = v === "2d" || !three; $("c3d").hidden = flat; $("c2d").hidden = !flat;
+  if (flat) bg2d = null; else { setCamera(three, v); resize3D(three); }
+}
+function restart() { sim = new Sim(cfg); bg2d = null; if (three) { theme3D(three); setCamera(three, view); } showRate(); }
+function syncControls() {
+  $("k-n").value = cfg.n; $("k-n-val").textContent = cfg.n; $("k-load").value = cfg.load; $("k-load-val").textContent = cfg.load.toFixed(2);
+  $("k-pick").value = cfg.service; $("k-pick-val").textContent = cfg.service + " s"; $("k-st").value = cfg.stations; $("k-st-val").textContent = cfg.stations;
+  $("k-k").value = cfg.k; $("k-k-val").textContent = cfg.k + " s"; $("k-ch").value = cfg.chargers; $("k-ch-val").textContent = cfg.chargers;
+  $("k-thr").value = cfg.chargeAt; $("k-thr-val").textContent = cfg.chargeAt + "%"; $("k-tech").value = cfg.techs; $("k-tech-val").textContent = cfg.techs;
+  $("p-" + cfg.planner).checked = true; $({ fifo: "a-fifo", near: "a-near", hung: "a-hung" }[cfg.alloc]).checked = true;
+  $("bat-on").setAttribute("aria-pressed", String(cfg.battery)); $("bat-off").setAttribute("aria-pressed", String(!cfg.battery));
+  document.querySelectorAll("[data-fault]").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.fault === cfg.faults)));
+  $("speed").value = speedIdx; $("speed-val").textContent = SPEEDS[speedIdx] + "×"; renderPC();
+}
+$("play").addEventListener("click", () => { playing = !playing; $("play").textContent = playing ? "Pause" : "Play"; });
+$("step").addEventListener("click", () => { playing = false; $("play").textContent = "Play"; sim.tick(); });
+$("speed").addEventListener("input", (e) => { speedIdx = +e.target.value; $("speed-val").textContent = SPEEDS[speedIdx] + "×"; });
+$("reset").addEventListener("click", () => { restart(); selectRobot(null); });
+["iso", "top", "2d"].forEach((v) => $("v-" + v).addEventListener("click", () => setView(v)));
+$("tab-fleet").addEventListener("click", () => setTab("fleet")); $("tab-robot").addEventListener("click", () => { setTab("robot"); renderInspector(); });
+const bindRange = (id, fmt, apply) => { const el = $(id); const upd = () => { $(id + "-val").textContent = fmt(+el.value); }; el.addEventListener("input", () => { upd(); apply(+el.value, false); }); el.addEventListener("change", () => apply(+el.value, true)); };
+bindRange("k-n", (v) => v, (v, done) => { if (done && v !== cfg.n) { cfg.n = v; restart(); selectRobot(null); } });
+bindRange("k-load", (v) => v.toFixed(2), (v) => { cfg.load = v; sim.refreshDemand(); showRate(); });
+bindRange("k-pick", (v) => v + " s", (v) => { cfg.service = v; sim.refreshDemand(); showRate(); });
+bindRange("k-st", (v) => v, (v) => { cfg.stations = v; sim.refreshDemand(); bg2d = null; if (three) theme3D(three); showRate(); });
+bindRange("k-k", (v) => v + " s", (v) => { cfg.k = v; });
+bindRange("k-ch", (v) => v, (v) => { cfg.chargers = v; sim.refreshDemand(); bg2d = null; if (three) theme3D(three); });
+bindRange("k-thr", (v) => v + "%", (v) => { cfg.chargeAt = v; });
+bindRange("k-tech", (v) => v, (v) => { cfg.techs = v; });
+$("bat-on").addEventListener("click", () => { cfg.battery = true; syncControls(); });
+$("bat-off").addEventListener("click", () => { cfg.battery = false; syncControls(); });
+document.querySelectorAll("[data-fault]").forEach((b) => b.addEventListener("click", () => { cfg.faults = +b.dataset.fault; syncControls(); }));
+document.querySelectorAll('input[name="alloc"]').forEach((el) => el.addEventListener("change", () => { cfg.alloc = el.value; renderPC(); }));
+document.querySelectorAll('input[name="planner"]').forEach((el) => el.addEventListener("change", () => { cfg.planner = el.value; renderPC(); restart(); selectRobot(null); }));
+function showRate() { $("k-rate").textContent = `= ${Math.round(sim.rate * 3600)} orders/h for ${cfg.n} robot${cfg.n > 1 ? "s" : ""} (errand ≈ ${Math.round(sim.cycle)} s)`; }
+
+const ALLOC_NAME = { fifo: "Greedy FIFO", near: "Greedy nearest", hung: "Hungarian" };
+function renderPins() {
+  $("pins-empty").hidden = ui.pins.length > 0;
+  if (!ui.pins.length) { $("pins").innerHTML = ""; return; }
+  const cols = [["Robots", (p) => p.n], ["Load", (p) => p.load.toFixed(2)], ["Dispatch", (p) => ALLOC_NAME[p.alloc] + (p.alloc === "hung" ? ` k=${p.k}` : "")],
+    ["Planner", (p) => p.planner === "pp" ? "Space-time A*" : "Ignore others"], ["Health", (p) => (p.battery ? `bat, ${p.chargers} ch` : "no bat") + (p.faults ? `, faults ×${p.faults}, ${p.techs} tech` : "")],
+    ["Tasks/h", (p) => Math.round(p.thr), "max", "thr"], ["Per robot", (p) => (p.thr / p.n).toFixed(1), "max", "per"], ["Util", (p) => Math.round(p.util * 100) + "%"],
+    ["Oldest", (p) => Math.round(p.oldest) + " s", "min", "oldest"], ["Backlog", (p) => p.backlog, "min", "backlog"], ["Avail", (p) => Math.round(p.avail * 100) + "%", "max", "avail"],
+    ["Travel-wait", (p) => (p.tw * 100).toFixed(1) + "%", "min", "tw"], ["Collisions", (p) => p.coll, "min", "coll"], ["", null]];
+  ui.pins.forEach((p) => { p.per = p.thr / p.n; });
+  const best = {}; cols.forEach(([, , dir, key]) => { if (dir) { const vals = ui.pins.map((p) => p[key]); best[key] = dir === "max" ? Math.max(...vals) : Math.min(...vals); } });
+  let h = "<thead><tr>" + cols.map(([n]) => `<th>${n}</th>`).join("") + "</tr></thead><tbody>";
+  ui.pins.forEach((p, i) => { h += "<tr>" + cols.map(([n, f, dir, key]) => { if (!f) return `<td><button type="button" data-unpin="${i}" aria-label="Remove row">✕</button></td>`; const isNum = !["Dispatch", "Planner", "Health"].includes(n); const b = dir && ui.pins.length > 1 && p[key] === best[key] ? " best" : ""; return `<td class="${isNum ? "n" : ""}${b}">${f(p)}</td>`; }).join("") + "</tr>"; });
+  $("pins").innerHTML = h + "</tbody>";
+  document.querySelectorAll("[data-unpin]").forEach((b) => b.addEventListener("click", () => { ui.pins.splice(+b.dataset.unpin, 1); save(); renderPins(); }));
+}
+$("pin").addEventListener("click", () => { const k = sim.kpis(); ui.pins.push({ ...cfg, ...k }); save(); renderPins(); });
+$("clear-pins").addEventListener("click", () => { ui.pins = []; save(); renderPins(); });
+
+const onTheme = () => { colorCache.clear(); bg2d = null; if (three) theme3D(three); drawTrend(); };
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme); new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] }); } catch (e) {}
+three = init3D();
+if (!three) { $("v-iso").disabled = true; $("v-top").disabled = true; setView("2d"); } else resize3D(three);
+try { new ResizeObserver(() => { if (three) resize3D(three); bg2d = null; drawTrend(); }).observe($("viewport")); } catch (e) {}
+$("play").textContent = playing ? "Pause" : "Play";
+window.__fleet = { get sim() { return sim; }, cfg, ui, selectRobot, startMission };
+startMission(0); syncControls(); renderPins(); renderInspector(); setTab("fleet");
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
