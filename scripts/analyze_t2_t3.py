@@ -65,7 +65,7 @@ def t2(name: str = "T2") -> None:
                label=f"of which waiting for a technician, ×{f:g}")
     a.axhline(0, color="black", lw=1)
     a.set_xlabel("technicians"); a.set_ylabel("throughput lost vs fault-free baseline (%)"); a.set_xticks([1, 2, 3, 4])
-    a.set_title("Each added technician buys back less (below 0 = beats the baseline)", fontsize=10); a.legend(frameon=False, fontsize=8); a.grid(alpha=0.3)
+    a.set_title("Throughput lost to faults (below 0 = beats the baseline)", fontsize=10); a.legend(frameon=False, fontsize=8); a.grid(alpha=0.3)
     b.set_xlabel("technicians"); b.set_ylabel("minutes per repair"); b.set_xticks([1, 2, 3, 4])
     b.set_title("With few technicians, downtime is mostly waiting", fontsize=10); b.legend(frameon=False, fontsize=8); b.grid(alpha=0.3)
     fig.suptitle(f"Trial {name} · 50 robots, load 1.0, aged fleet · 10 seeds per cell, 95% intervals", fontsize=11)

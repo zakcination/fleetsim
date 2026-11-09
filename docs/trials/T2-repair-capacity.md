@@ -79,6 +79,6 @@ Two more weaknesses the trial exposed in the model: robots only consider the **n
 
 ### What this changes
 
-1. The waiting-time result (H1) and the diminishing absolute gains do not depend on the baseline and stand.
+1. The waiting-time result (H1) stands. **Update after T2b:** the diminishing gains do not. With batteries off, each added technician keeps paying off at frequent faults (+93, +56, +69 tasks/h); the pattern here was the charging ceiling.
 2. The size of the throughput loss is **not** trustworthy from this trial. [T2b](T2b-repair-capacity-no-battery.md) repeats it with batteries off, pre-registered before any run.
 3. Backlog items: choose the charger with the earliest free slot; stagger initial charge or lengthen the horizon to several battery cycles; a charger-capacity trial of its own.
