@@ -32,6 +32,9 @@ class ReservationTable:
         self.park: dict[int, tuple[int, int]] = {}  # cell -> (agent, from_t)
         self.cell_last: dict[int, dict[int, int]] = {}  # cell -> {agent: last t on cell}
         self.owned: dict[int, tuple[int, list[int]]] = {}  # agent -> (t0, path)
+        # cells that agents with id < robot_limit may never enter (technician bases)
+        self.forbid: frozenset[int] = frozenset()
+        self.robot_limit: int = 1 << 30
 
     # -------------------------------------------------------------- mutation
     def reserve(self, agent: int, t0: int, path: list[int]) -> None:
@@ -85,6 +88,8 @@ class ReservationTable:
 
     # -------------------------------------------------------------- queries
     def cell_free(self, cell: int, t: int, agent: int) -> bool:
+        if cell in self.forbid and agent < self.robot_limit:
+            return False
         other = self.vertex.get((cell, t))
         if other is not None and other != agent:
             return False

@@ -285,6 +285,9 @@ td.best { color: var(--good); font-weight: 700; }
     <div class="knob"><label class="name" for="k-ch"><span>Chargers</span><span class="val" id="k-ch-val">2</span></label><input type="range" id="k-ch" min="1" max="8" step="1" value="2">
       <p class="why">A robot below the threshold stops taking orders and drives to the nearest charger.</p></div>
     <div class="knob"><label class="name" for="k-thr"><span>Charge below</span><span class="val" id="k-thr-val">25%</span></label><input type="range" id="k-thr" min="10" max="50" step="5" value="25"></div>
+    <div class="knob"><span class="name eyebrow" style="display:block;margin-bottom:0.3rem">Top up when idle</span>
+      <div class="seg" role="group" aria-label="Top up when idle"><button type="button" id="top-on" aria-pressed="true">On</button><button type="button" id="top-off" aria-pressed="false">Off</button></div>
+      <p class="why">With no orders waiting, idle robots below 90% charge to 100% instead of standing part-charged. An order or a low-battery robot can cut a top-up short.</p></div>
     <div class="knob"><span class="name eyebrow" style="display:block;margin-bottom:0.3rem">Faults</span>
       <div class="seg" role="group" aria-label="Fault rate"><button type="button" data-fault="0" aria-pressed="true">Off</button><button type="button" data-fault="1" aria-pressed="false">Rare</button><button type="button" data-fault="4" aria-pressed="false">Normal</button><button type="button" data-fault="12" aria-pressed="false">Frequent</button></div>
       <p class="why">Worn parts fail more often. A failed robot stops where it is and blocks the aisle until a technician fixes it. Technicians walk on corridors that robots keep clear.</p></div>
@@ -804,6 +807,9 @@ class Sim {
 
   tick() {
     const c = this.cfg, t = this.t, rec = this.zero(), f0 = this.failures; rec.ticks = 1; rec.socMin = 100;
+    // 0. orders finishing this second are recorded before any new plan is made (a new plan drops the old completion)
+    const fin = this.done.get(t);
+    if (fin) { for (const { o, r } of fin) { rec.done++; rec.dsum += t - o.assigned - o.ff; rec.dn++; const rb = this.robots[r]; rb.done++; if (rb.order === o) rb.order = null; this.note(rb, t, `Order #${o.id} done: pod back in its slot`); } this.totalDone += fin.length; this.done.delete(t); }
     // 1. orders arrive
     const k = this.poisson(this.rate);
     for (let q = 0; q < k; q++) this.pending.push({ id: this.nextId++, pod: PODS[(this.rng() * PODS.length) | 0], station: this.open[(this.rng() * this.open.length) | 0], created: t, compT: null });
@@ -820,7 +826,9 @@ class Sim {
     for (const r of this.robots) {
       if (r.failed || r.stuck) continue;
       const s = this.state(r, t), p = this.pos(r, t);
+      if (r.topup && (s === TO_CHARGER || s === CHARGING)) { if (r.hp.soc >= c.chargeAt) free.push([r.id, p]); continue; } // a top-up can be cut short by an order
       if (s !== IDLE && s !== TO_HOME) continue;
+      r.topup = false;
       if (r.wantService && s === IDLE && p === r.home) { r.wantService = false; this.fail(r, t, "service"); continue; }
       if (c.battery && r.hp.soc < c.chargeAt && this.chargers.length) {
         if ((r.retryAt || 0) > t) continue;
@@ -831,24 +839,40 @@ class Sim {
           if (res.ok) { ok = true; break; }
           rec.fails++;
         }
-        if (ok) { r.order = null; this.note(r, t, `Battery ${Math.round(r.hp.soc)}%: going to charger`); } else r.retryAt = t + 10;
+        if (ok) { r.order = null; this.note(r, t, `Battery ${Math.round(r.hp.soc)}%: going to charger`); }
+        else { // chargers busy: a robot that is only topping up gives its charger to the low one
+          const hog = this.robots.find((x) => x.topup && x.frozen === null && [TO_CHARGER, CHARGING].includes(this.state(x, t)));
+          if (hog && this.tryPlan(hog, t, []).ok) { hog.topup = false; this.note(hog, t, "Top-up ended: a low-battery robot needs the charger"); r.retryAt = t + 1; } else r.retryAt = t + 10;
+        }
         continue;
       }
       if (r.wantService) continue;
       free.push([r.id, p]);
     }
-    const pairs = this.allocate(free); const taken = new Set();
+    const pairs = this.allocate(free); const taken = new Set(), busy = new Set();
     for (const [rid, o] of pairs) {
       const r = this.robots[rid], start = this.pos(r, t);
       const legs = orderLegs(o, c.service);
       r.order = o; const res = this.tryPlan(r, t, legs); rec.ms += res.ms; rec.calls++;
       if (!res.ok) { r.order = null; o.retryAt = t + 5; rec.fails++; continue; }
-      o.assigned = t; o.robot = rid;
+      o.assigned = t; o.robot = rid; r.topup = false; busy.add(rid);
       o.ff = distTo(o.pod)[start] + LIFT_T + 2 * distTo(o.station)[o.pod] + c.service + DROP_T;
       rec.wsum += t - o.created; rec.wn++; taken.add(o.id);
       this.note(r, t, `Order #${o.id}: pod at ${cellRC(o.pod).join(",")} to station ${STATIONS.indexOf(o.station) + 1}`);
     }
     if (taken.size) this.pending = this.pending.filter((o) => !taken.has(o.id));
+    if (c.battery && c.topup && this.chargers.length && !this.pending.length) { // no orders waiting: idle robots top up to 100%
+      for (const [rid, p] of free) {
+        const r = this.robots[rid];
+        if (busy.has(rid) || r.topup || r.hp.soc >= 90 || (r.retryAt || 0) > t) continue;
+        let ok = false;
+        for (const ch of this.chargers.slice().sort((a, b) => distTo(a)[p] - distTo(b)[p]).slice(0, 3)) {
+          const need = Math.ceil((100 - r.hp.soc + distTo(ch)[p] * HEALTH.drainMove) / (HEALTH.chargeRate * r.hp.batHealth / 100));
+          if (this.tryPlan(r, t, [{ goal: ch, dwell: Math.max(10, need), travel: TO_CHARGER, dwellSt: CHARGING, tag: "charge" }]).ok) { ok = true; break; }
+        }
+        if (ok) { r.topup = true; this.note(r, t, `No orders waiting: topping up from ${Math.round(r.hp.soc)}%`); } else r.retryAt = t + 10;
+      }
+    }
     // 4. health, telemetry, observations
     for (const r of this.robots) this.health(r, t, rec);
     const seen = new Map(); this.hit = new Set(); const ti = t % TEL;
@@ -869,8 +893,6 @@ class Sim {
       prev.forEach((id, key) => { const [a, b] = key.split(","); if (a < b && prev.has(b + "," + a)) { rec.conf++; this.hit.add(id); this.hit.add(prev.get(b + "," + a)); } });
     }
     this.collisions += rec.conf;
-    const fin = this.done.get(t);
-    if (fin) { for (const { o, r } of fin) { rec.done++; rec.dsum += t - o.assigned - o.ff; rec.dn++; const rb = this.robots[r]; rb.done++; if (rb.order === o) rb.order = null; this.note(rb, t, `Order #${o.id} done: pod back in its slot`); } this.totalDone += fin.length; this.done.delete(t); }
     rec.rfail = this.failures - f0;
     this.ring.push(rec); for (const key in rec) if (key !== "socMin") this.sum[key] += rec[key];
     if (this.ring.length > WIN) { const old = this.ring.shift(); for (const key in old) if (key !== "socMin") this.sum[key] -= old[key]; }
@@ -924,7 +946,7 @@ const MISSIONS = [
       { text: "Lower it again until the backlog drains below 3", check: (s, ui) => ui.sawOverload && s.pending.length < 3 && s.cfg.load < 1.0 },
     ] },
   { id: "m5", title: "Power and charging", setup: { n: 12, load: 0.8, battery: true, faults: 0, planner: "pp", alloc: "fifo", stations: 19, chargers: 1, techs: 1 }, speed: 5,
-    concept: "Real robots run on batteries. Below the threshold a robot stops taking orders and drives to a charger. Chargers are shared: with too few, robots queue at them and fleet capacity drops even though nobody is broken.",
+    concept: "Real robots run on batteries. Below the threshold a robot stops taking orders and drives to a charger. When no orders are waiting, idle robots top up to 100% so they never stand around part-charged. Chargers are shared: with too few, robots queue at them and fleet capacity drops even though nobody is broken.",
     tasks: [
       { text: "Watch a robot go to the charger (yellow)", check: (s) => s.robots.some((r) => s.state(r, s.t) === CHARGING) },
       { text: "Open a robot and read its battery graph", check: (s, ui) => ui.selected !== null && ui.inspectedBattery },
@@ -949,7 +971,7 @@ const MISSIONS = [
 ];
 
 // ============================================================ UI state
-const cfg = { n: 1, load: 1.0, service: 10, stations: 19, alloc: "fifo", k: 5, planner: "pp", battery: false, chargers: 2, chargeAt: 25, faults: 0, techs: 1 };
+const cfg = { n: 1, load: 1.0, service: 10, stations: 19, alloc: "fifo", k: 5, planner: "pp", battery: false, chargers: 2, chargeAt: 25, topup: true, faults: 0, techs: 1 };
 let sim = new Sim(cfg);
 const SPEEDS = [1, 2, 5, 10, 20, 40, 80];
 let speedIdx = 3, playing = !window.matchMedia("(prefers-reduced-motion: reduce)").matches, acc = 0;
@@ -1350,6 +1372,7 @@ function syncControls() {
   $("k-thr").value = cfg.chargeAt; $("k-thr-val").textContent = cfg.chargeAt + "%"; $("k-tech").value = cfg.techs; $("k-tech-val").textContent = cfg.techs;
   $("p-" + cfg.planner).checked = true; $({ fifo: "a-fifo", near: "a-near", hung: "a-hung" }[cfg.alloc]).checked = true;
   $("bat-on").setAttribute("aria-pressed", String(cfg.battery)); $("bat-off").setAttribute("aria-pressed", String(!cfg.battery));
+  $("top-on").setAttribute("aria-pressed", String(cfg.topup)); $("top-off").setAttribute("aria-pressed", String(!cfg.topup));
   document.querySelectorAll("[data-fault]").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.fault === cfg.faults)));
   $("speed").value = speedIdx; $("speed-val").textContent = SPEEDS[speedIdx] + "×"; renderPC();
 }
@@ -1370,6 +1393,8 @@ bindRange("k-thr", (v) => v + "%", (v) => { cfg.chargeAt = v; });
 bindRange("k-tech", (v) => v, (v) => { cfg.techs = v; });
 $("bat-on").addEventListener("click", () => { cfg.battery = true; syncControls(); });
 $("bat-off").addEventListener("click", () => { cfg.battery = false; syncControls(); });
+$("top-on").addEventListener("click", () => { cfg.topup = true; syncControls(); });
+$("top-off").addEventListener("click", () => { cfg.topup = false; syncControls(); });
 document.querySelectorAll("[data-fault]").forEach((b) => b.addEventListener("click", () => { cfg.faults = +b.dataset.fault; syncControls(); }));
 document.querySelectorAll('input[name="alloc"]').forEach((el) => el.addEventListener("change", () => { cfg.alloc = el.value; renderPC(); }));
 document.querySelectorAll('input[name="planner"]').forEach((el) => el.addEventListener("change", () => { cfg.planner = el.value; renderPC(); restart(); selectRobot(null); }));

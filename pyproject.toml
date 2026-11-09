@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fleetsim"
-version = "0.1.0"
+version = "0.2.0"
 description = "Amazon-style fulfillment fleet: task allocation + MAPF + throughput analytics"
 readme = "README.md"
 license = { text = "MIT" }

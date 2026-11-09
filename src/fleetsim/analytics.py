@@ -8,14 +8,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .checker import find_conflicts
-from .sim import BLOCKED, BUSY_STATES, CHARGING, DOWN_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
+from .checker import find_conflicts, find_tech_conflicts
+from .sim import BLOCKED, BUSY_STATES, CHARGING, IDLE, DOWN_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
 
 
 def run_id_of(res: SimResult) -> str:
     c = res.config
     alloc = f"{c.allocator}{c.aging:g}" if c.allocator == "hungarian_aging" else c.allocator
-    return f"n{c.n_robots}_{alloc}_load{c.load:g}_s{c.seed}"
+    health = ""
+    if c.health_on:  # keep health arms apart; runs without health keep their v0.1 ids
+        health = (f"_f{c.faults:g}_t{c.techs}_{c.maintenance}" + ("_bat" if c.battery else "")
+                  + ("_cor" if c.tech_corridors else "") + ("_top" if c.idle_topup else ""))
+    return f"n{c.n_robots}_{alloc}_load{c.load:g}{health}_s{c.seed}"
 
 
 def to_frames(res: SimResult, run_id: str | None = None) -> dict[str, pd.DataFrame]:
@@ -133,6 +137,8 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
         "techs": cfg.techs if cfg.health_on else float("nan"),
         "maintenance": cfg.maintenance,
         "battery": cfg.battery,
+        "corridors": cfg.tech_corridors,
+        "idle_topup": cfg.idle_topup,
         "load": cfg.load,
         "orders_per_h": res.rate * 3600,
         "throughput_per_h": len(completed) / hours,
@@ -159,6 +165,26 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
     return out
 
 
+def tech_idle_with_work(res: SimResult) -> np.ndarray:
+    """``[T, techs]`` bool: the technician has no job in this second although a repair job is waiting."""
+    T, K = res.tech_traj.shape
+    waiting, busy = np.zeros(T, dtype=bool), np.zeros((T, K), dtype=bool)
+    for j in res.jobs:
+        open_ = j["status"] == "waiting" or j["assigned"] is None
+        waiting[j["created"]:T if open_ else j["assigned"]] = True
+        if not open_ and j["tech"] is not None:
+            busy[j["assigned"]:T if j["end"] is None else j["end"], j["tech"]] = True
+    return waiting[:, None] & ~busy
+
+
+def _longest_run(x: np.ndarray) -> int:
+    best = cur = 0
+    for v in x:
+        cur = cur + 1 if v else 0
+        best = max(best, cur)
+    return best
+
+
 def health_kpis(res: SimResult) -> dict:
     """Availability, MTBF, MTTR and battery KPIs over the measured window."""
     cfg = res.config
@@ -176,10 +202,24 @@ def health_kpis(res: SimResult) -> dict:
         "mtbf_h": up_hours / len(fails) if fails else float("nan"),
         "mttr_s": float(np.mean([j["end"] - j["created"] for j in repaired])) if repaired else float("nan"),
         "repair_wait_s": float(np.mean([j["arrive"] - j["created"] for j in repaired])) if repaired else float("nan"),
+        "repair_queue_s": float(np.mean([j["assigned"] - j["created"] for j in repaired])) if repaired else float("nan"),
+        "tech_walk_s": float(np.mean([j["arrive"] - j["assigned"] for j in repaired])) if repaired else float("nan"),
+        "corridor_reroutes": res.reroutes,
         "blocked_share": float((S == BLOCKED).mean()),
         "charging_share": float((S == CHARGING).mean()),
     }
+    if res.tech_traj is not None:
+        out["tech_conflicts"] = len(find_tech_conflicts(res.traj, res.tech_traj, res.grid))
+        out["robots_on_tech_bases"] = int(np.isin(res.traj, res.tech_bases).sum())
+        out["tech_at_base_share"] = float((res.tech_traj[w0:] == np.array(res.tech_bases)[None, :]).mean())
+        idle = tech_idle_with_work(res)[w0:]
+        out["tech_idle_with_work_share"] = float(idle.mean())
+        out["tech_idle_with_work_max_s"] = int(max(_longest_run(idle[:, k]) for k in range(idle.shape[1])))
     if res.soc is not None:
         out["soc_min"] = float(res.soc[w0:].min())
         out["soc_mean"] = float(res.soc[w0:].mean())
+        idle = S == IDLE
+        out["idle_share"] = float(idle.mean())
+        out["idle_soc_mean"] = float(res.soc[w0:][idle].mean()) if idle.any() else float("nan")
+        out["idle_below_90_share"] = float((res.soc[w0:][idle] < 90).mean()) if idle.any() else float("nan")
     return out
