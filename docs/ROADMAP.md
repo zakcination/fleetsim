@@ -17,6 +17,10 @@ v0.1 is a foundation: one map, prioritized space-time A*, three dispatch policie
 | 🔴 | Priority-Based Search (Ma et al., AAAI 2019) | Searches over priority orders; near-optimal |
 | 🔴 | PIBT / LaCAM (Okumura) | Scales to thousands of robots |
 | 🔴 | Execution delays (LoRR 2026 `delayConfig`) plus robust replanning | Real robots are late; measure throughput under disturbance |
+| 🟡 | Turn time: rotation as its own one-tick action (the LoRR model: forward, rotate, wait), so a robot's state is (cell, heading, time); behind a switch, with a trial on how much throughput turns cost and whether policy rankings change | Today turns are free; real drive units stop, rotate and accelerate |
+| 🔴 | Acceleration and deceleration limits on top of turn time | Closer to real drive-unit kinematics |
+| 🟡 | Technician safety corridors in the Python engine (already in the Academy): technicians as priority agents in the reservation table, plus a trial on what clear corridors cost in throughput | People must never share a cell with a moving robot |
+| 🟢 | Chargers: pick the charger with the earliest free slot, not only the nearest (found in trial T2) | Removes an artificial charging bottleneck |
 
 ## Track B · Dispatch and warehouse operations
 
