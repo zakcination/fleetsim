@@ -69,6 +69,19 @@ v0.1 is a foundation: one map, prioritized space-time A*, three dispatch policie
 | 🟢 | "Share this config" link that encodes the sliders in `#hash` | Lets people send each other experiments |
 | 🟡 | Replay a Python Parquet log in the 3D view | One viewer for both engines |
 
+## Track G · Incidents and resilience
+
+Design and rules: [INCIDENTS.md](INCIDENTS.md). An incident is a scenario with a response policy and a trial, never a bare event.
+
+| | Item | Why it matters |
+|---|---|---|
+| 🟡 | Incident list in `SimConfig`, twin-run analysis (same seed, no incident), recovery KPIs | The shared mechanism every item below needs |
+| 🟢 | `power`: chargers offline for a window; trial on idle top-up as ride-through reserve | Ties battery policy to an outage you can measure |
+| 🟢 | `stop`: fleet-wide hold (control outage, e-stop); restart all at once vs. in waves | Recovery after a restart is where queues blow up |
+| 🟡 | `zone`: close a rectangle of cells (spill, person on the floor); hold vs. evacuate | Same machinery as a stopped robot, at area scale |
+| 🟡 | `telemetry`: observed health differs from true health (bias, noise, stuck value, gaps) | Tests whether condition-based maintenance survives bad data |
+| 🔴 | `collision`: robots that run late can touch; needs the execution-delay item in Track A | The only incident that breaks the zero-collision guarantee, so it comes last |
+
 ## Related work worth connecting to
 
 - League of Robot Runners: competition, maps and evaluation harness. <https://github.com/MAPF-Competition/Start-Kit>
