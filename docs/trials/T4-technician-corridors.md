@@ -38,6 +38,38 @@ fleetsim bench --robots 50 --loads 1.0 --allocators nearest --initial-wear 0.6 -
 
 ---
 
-## Results
+## Results (run 2026-11-09, commit `664eed3`)
 
-*Not yet run.*
+40 runs, **0 robot–robot collisions, 0 robot–technician conflicts**. Raw data: [`results/T4/runs.csv`](../../results/T4/runs.csv). Tables and chart: `python scripts/analyze_t4.py`.
+
+![T4 results](../../results/T4/t4.png)
+
+The corridors-off arm reproduces T2b's two cells exactly, as it should. Means over 10 seeds:
+
+| Faults | Corridors | Tasks/h | Mean order wait (s) | Availability | MTTR (s) | of which queue (s) | Technician walk (s) | Robot reroutes per run |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| ×4 | off | 790.7 | 12 | 0.948 | 462 | 144 | 53 | 0 |
+| ×4 | on | 781.7 | 28 | 0.904 | 867 | 546 | 60 | 110 |
+| ×12 | off | 636.4 | 242 | 0.697 | 1,287 | 978 | 50 | 0 |
+| ×12 | on | 577.2 | 360 | 0.644 | 1,658 | 1,338 | 64 | 97 |
+
+Paired by seed, corridors on / off: tasks/h **0.989 [0.976, 1.001]** at faults ×4 and **0.910 [0.856, 0.963]** at faults ×12. Technician walk per job: +6.7 s [+0.4, +12.9] and +14.6 s [+4.8, +24.3].
+
+### Verdicts against the pre-registered bars
+
+- **H1 (safety): holds.** No robot ever shared a cell or swapped cells with a technician, no technician jumped cells, no robot stood on a technician base, and there were no robot–robot collisions.
+- **H2: fails, narrowly.** At normal faults the mean cost is 1.1%, but the interval's lower bound is 0.976, below the 0.98 bar.
+- **H3: fails.** At frequent faults corridors cost 9.0% of throughput (lower bound 0.856; the bar was 0.95).
+- **H4: holds.** Technicians walk 7–15 s longer per job.
+
+### Why the cost is so high (exploratory, not pre-registered)
+
+The extra repair time is almost all **queueing** (+400 s per job), not walking (+7 to +15 s). Tracing one run showed why: one of the two technician bases, (0, 6), was walled in. Robots park at homes on three sides of it, and the only gap left was regularly inside the other technician's booked corridor, which this implementation treats as a wall for the whole duty. That technician failed to find a route **335 times** in a single run and sat idle while jobs waited. With the crew already near its limit (about 1.8 technician-hours of work per hour for 2 technicians), losing part of one technician blows up the queue.
+
+`choose_tech_bases` promised that "every base keeps a way out" but only checked for one free neighbouring cell. That is a defect in the feature, so these throughput numbers measure a corridor system with a badly placed base, not corridors as such.
+
+### What this changes
+
+1. The safety result stands: booked priority corridors keep people and robots apart in all 20 corridor runs.
+2. The cost numbers do not stand as a measure of corridors. [T4b](T4b-technician-corridors-fixed-bases.md) repeats the trial after fixing base placement, pre-registered with these results disclosed.
+3. A design lesson either way: where technicians start from matters as much as the corridors, and near a crew's capacity limit small losses turn into long queues.

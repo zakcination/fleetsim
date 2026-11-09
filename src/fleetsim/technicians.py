@@ -57,25 +57,31 @@ def choose_tech_bases(grid: Grid, homes: list[int], chargers: list[int], k: int)
     """``k`` base cells near the map's first free cell, off-limits to robots.
 
     Chosen after the robot homes (so switching corridors on does not move any
-    home) and such that parked robots plus bases never cut the floor in two and
-    every base keeps a way out.
+    home). Guarantees, with every robot parked at home and every other technician
+    at base: the rest of the floor stays connected, and each technician can walk
+    from their base to the floor.
     """
     taken = set(homes) | set(chargers) | set(grid.stations)
-    for c in list(chargers) + list(grid.stations):
-        taken.update(grid.neighbors[c])
+    for c in list(chargers) + list(grid.stations) + list(homes):
+        taken.update(grid.neighbors[c])  # not next to a home either: parked robots must not hem a base in
     origin = min(grid.free_cells())
     dist = grid.bfs(origin)
     cands = sorted((c for c in grid.free_cells() if grid.char(c) == "." and c not in taken), key=lambda c: (int(dist[c]), c))
     chosen: list[int] = []
     blocked = set(homes)
     probe = grid.stations[0]
+
+    def way_out(base: int) -> bool:
+        return grid.bfs(base, blocked - {base})[probe] != UNREACHABLE
+
     for c in cands:
         if len(chosen) == k:
             break
+        if any(n in chosen for n in grid.neighbors[c]):
+            continue  # bases are not adjacent, so technicians never start in each other's way
         blocked.add(c)
         connected = int((grid.bfs(probe, blocked) != UNREACHABLE).sum()) == grid.n_free - len(blocked)
-        exits = all(any(n not in blocked for n in grid.neighbors[b]) for b in chosen + [c])
-        if connected and exits:
+        if connected and all(way_out(b) for b in chosen + [c]):
             chosen.append(c)
         else:
             blocked.discard(c)

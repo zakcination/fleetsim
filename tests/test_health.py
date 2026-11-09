@@ -170,3 +170,18 @@ def test_technician_walks_out_repairs_from_next_cell_and_returns(grid):
     assert stand in grid.neighbors[f._repair_cells[job["id"]]]  # repaired from the next cell, not on top of the robot
     assert job["end"] - job["start"] == 300 and not victim.failed
 
+
+
+def test_every_technician_base_has_a_real_way_out(grid):
+    """Regression for trial T4: a base walled in by parked robots left a technician stuck."""
+    from fleetsim.grid import UNREACHABLE
+    from fleetsim.technicians import choose_tech_bases
+
+    for n in (20, 50, 100):
+        homes = grid.choose_parking(n)
+        bases = choose_tech_bases(grid, homes, [], 4)
+        assert len(set(bases)) == 4 and not set(bases) & set(homes)
+        for b in bases:
+            walls = (set(homes) | set(bases)) - {b}
+            assert grid.bfs(b, walls)[grid.stations[0]] != UNREACHABLE
+            assert not any(nb in homes for nb in grid.neighbors[b])
