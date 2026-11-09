@@ -11,12 +11,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats as st
 
-DESIGN = ["n_robots", "load", "allocator", "faults", "techs", "maintenance"]
+DESIGN = ["n_robots", "load", "allocator", "faults", "techs", "maintenance", "corridors"]
 METRICS = [
     "throughput_per_h", "utilization", "travel_wait_share", "congestion_delay_s",
     "order_wait_s", "order_wait_p95_s", "order_wait_p99_s", "order_wait_max_s",
     "backlog_end", "plan_ms_mean", "plan_fail_rate", "collisions",
-    "availability", "failures", "services", "mtbf_h", "mttr_s", "repair_wait_s", "blocked_share", "charging_share",
+    "availability", "failures", "services", "mtbf_h", "mttr_s", "repair_wait_s", "repair_queue_s", "tech_walk_s", "blocked_share", "charging_share",
+    "corridor_reroutes", "tech_conflicts",
 ]
 
 

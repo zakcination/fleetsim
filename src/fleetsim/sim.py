@@ -9,6 +9,9 @@ Collision-freedom is kept through every disruption: a robot that stops becomes
 a permanent obstacle in the reservation table, and every robot whose booked
 route crosses it replans its remaining legs immediately or, if no route exists,
 stops safely where it is ("blocked") and retries every few seconds.
+
+Technicians are either timers (default) or, with ``tech_corridors=True``,
+priority agents that walk on booked corridors robots must keep clear.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from .allocation import make_allocator
 from .grid import DEFAULT_CROP, DEFAULT_MAP, UNREACHABLE, Grid
 from .orders import Order, OrderStream
 from .planner import ReservationTable, SearchStats, plan_errand
+from .technicians import CorridorCrew, TimerCrew
 
 # Robot states (int8 codes in the tick log)
 (IDLE, TO_POD, LIFT, TO_STATION, SERVICE, RETURN, DROP, TO_HOME,
@@ -61,6 +65,7 @@ class SimConfig:
     maintenance: str = "none"  # none (run to failure) | interval | condition
     service_interval: int = 5400  # interval policy: operating seconds between services
     service_wear: float = 0.5  # condition policy: service when any part's wear exceeds this
+    tech_corridors: bool = False  # technicians walk on booked, priority corridors (see technicians.py)
 
     @property
     def health_on(self) -> bool:
@@ -121,6 +126,9 @@ class SimResult:
     motor_temp: np.ndarray | None = None  # [T, N] hotter motor, °C, when health is on
     jobs: list[dict] = field(default_factory=list)  # every repair / service job
     chargers: list[int] = field(default_factory=list)
+    tech_traj: np.ndarray | None = None  # [T, n_techs] cell index, when technicians walk corridors
+    tech_bases: list[int] = field(default_factory=list)
+    reroutes: int = 0  # robot plans changed to keep a technician's corridor clear
 
     @property
     def total_ticks(self) -> int:
@@ -186,7 +194,6 @@ class Fleet:
         self.allocator = make_allocator(cfg.allocator, k=cfg.k, aging=cfg.aging)
         self.hrng = np.random.default_rng(cfg.seed + 2)  # health stream, independent of orders
         self.chargers = choose_chargers(g, self.homes, cfg.chargers) if cfg.battery else []
-        self.tech_base = min(g.free_cells())
         self.rt = ReservationTable()
         self.robots: list[Robot] = []
         for i, h in enumerate(self.homes):
@@ -195,7 +202,6 @@ class Fleet:
                 r.hp = H.Health.new(self.hrng, cfg.initial_wear, cfg.service_interval)
             self.rt.reserve(i, 0, r.path)
             self.robots.append(r)
-        self.techs = [{"id": i, "cell": self.tech_base, "job": None} for i in range(cfg.techs)]
         self.pending: list[Order] = []
         self.orders: list[Order] = []
         self.plans: list[dict] = []
@@ -205,6 +211,9 @@ class Fleet:
         self.stop_version = 0
         self._stop_queue: list[int] = []
         self._reach_cache: dict[tuple[int, int], np.ndarray] = {}
+        self.reroutes = 0
+        self._repair_cells: dict[int, int] = {}  # job id -> cell where the robot stopped
+        self.crew = CorridorCrew(self) if cfg.tech_corridors else TimerCrew(self)
 
     # ------------------------------------------------------------ planning
     def _commit(self, r: Robot, t: int, path: list[int], arr: list[int], legs: list[Leg]) -> None:
@@ -278,7 +287,7 @@ class Fleet:
         # later). The stopped robot takes the cell; that robot must replan or wait.
         holder = self.rt.park.get(p)
         evicted = None
-        if holder is not None and holder[0] != r.id:
+        if holder is not None and holder[0] != r.id and holder[0] < len(self.robots):
             evicted = self.robots[holder[0]]
             evicted_legs = self._remaining(evicted, t)
             self.rt.release(evicted.id)
@@ -290,6 +299,7 @@ class Fleet:
         self.stopped_cells.add(p)
         self.stop_version += 1
         self._stop_queue.append(r.id)
+        self.crew.on_freeze(p, t)
         if evicted is not None and not self._try_plan(evicted, t, evicted_legs, restore=False):
             evicted.resume, evicted.blocked = evicted_legs, True
             self._freeze(evicted, t, BLOCKED)
@@ -313,6 +323,7 @@ class Fleet:
                 if not self._try_plan(j, t, legs, restore=False):
                     j.resume, j.blocked = legs, True
                     self._freeze(j, t, BLOCKED)
+        self.crew.fix(t)
 
     def _stop(self, r: Robot, t: int, component: str) -> None:
         """A fault (or a scheduled service) stops the robot where it stands."""
@@ -320,42 +331,23 @@ class Fleet:
         r.failed, r.blocked = True, False
         self._freeze(r, t, FAILED)
         job = {"id": len(self.jobs), "robot": r.id, "component": component, "kind": "service" if component == "service" else "failure",
-               "created": t, "tech": None, "arrive": None, "start": None, "end": None, "status": "waiting"}
+               "created": t, "assigned": None, "tech": None, "arrive": None, "start": None, "end": None, "status": "waiting"}
         self.jobs.append(job)
+        self._repair_cells[job["id"]] = r.pos(t)
         r.job = job
         self._resolve(t)
 
     # ------------------------------------------------------------ health
-    def _techs(self, t: int) -> None:
-        waiting = [j for j in self.jobs if j["status"] == "waiting"]
-        for tech in self.techs:
-            if tech["job"] is None and waiting:
-                job = waiting.pop(0)
-                cell = self.robots[job["robot"]].pos(t)
-                job["tech"], job["status"] = tech["id"], "en route"
-                job["arrive"] = t + int(self.grid.distance(tech["cell"], cell))
-                tech["job"] = job
-            job = tech["job"]
-            if job is None:
-                continue
-            r = self.robots[job["robot"]]
-            if job["status"] == "en route" and t >= job["arrive"]:
-                job["status"], job["start"] = "repairing", t
-                job["end"] = t + H.REPAIR_S[job["component"]]
-                tech["cell"] = r.pos(t)
-                r.frozen = REPAIR
-                r.states = np.array([REPAIR], dtype=np.int8)
-            if job["status"] == "repairing" and t >= job["end"]:
-                job["status"] = "done"
-                tech["job"] = None
-                r.hp.repair(job["component"])
-                r.failed, r.job, r.frozen = False, None, None
-                legs, r.resume = r.resume or [], None
-                self._unfreeze(r, t)
-                if not self._try_plan(r, t, legs, restore=False):
-                    r.resume, r.blocked = legs, True
-                    self._freeze(r, t, BLOCKED)
-                    self._resolve(t)
+    def _finish_repair(self, r: Robot, t: int, job: dict) -> None:
+        """The technician is done: reset the part and send the robot back to its work."""
+        r.hp.repair(job["component"])
+        r.failed, r.job, r.frozen = False, None, None
+        legs, r.resume = r.resume or [], None
+        self._unfreeze(r, t)
+        if not self._try_plan(r, t, legs, restore=False):
+            r.resume, r.blocked = legs, True
+            self._freeze(r, t, BLOCKED)
+            self._resolve(t)
 
     def _health_tick(self, t: int, u: np.ndarray) -> None:
         cfg = self.cfg
@@ -406,7 +398,7 @@ class Fleet:
         self.pending.extend(new)
         self.orders.extend(new)
         if cfg.health_on:
-            self._techs(t)
+            self.crew.step(t)
             if t % 3 == 0:
                 for r in self.robots:
                     if not r.blocked or r.failed:
@@ -465,6 +457,7 @@ class Fleet:
         order_of = np.full((T, N), -1, dtype=np.int32)
         soc = np.empty((T, N), dtype=np.float32) if cfg.battery else None
         temp = np.empty((T, N), dtype=np.float32) if cfg.health_on else None
+        tech_traj = np.empty((T, len(self.crew.techs)), dtype=np.int32) if self.crew.tracks else None
         for t in range(T):
             self.step(t)
             for r in self.robots:
@@ -477,12 +470,16 @@ class Fleet:
                     soc[t, r.id] = r.hp.soc
                 if temp is not None:
                     temp[t, r.id] = max(r.hp.temp_l, r.hp.temp_r)
+            if tech_traj is not None:
+                for i, tech in enumerate(self.crew.techs):
+                    tech_traj[t, i] = tech.pos(t)
             if t % 250 == 0:
                 self.rt.prune_before(t)
             if log_progress and t % 500 == 0:
                 print(f"  t={t} pending={len(self.pending)} jobs open={sum(j['status'] != 'done' for j in self.jobs)}", flush=True)
         return SimResult(cfg, self.grid, self.homes, traj, state, order_of, self.orders, self.plans, self.rate,
-                         time.perf_counter() - wall0, soc=soc, motor_temp=temp, jobs=self.jobs, chargers=self.chargers)
+                         time.perf_counter() - wall0, soc=soc, motor_temp=temp, jobs=self.jobs, chargers=self.chargers,
+                         tech_traj=tech_traj, tech_bases=list(getattr(self.crew, "bases", [])), reroutes=self.reroutes)
 
 
 def run(cfg: SimConfig, grid: Grid | None = None, log_progress: bool = False) -> SimResult:

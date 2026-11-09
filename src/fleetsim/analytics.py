@@ -8,14 +8,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .checker import find_conflicts
+from .checker import find_conflicts, find_tech_conflicts
 from .sim import BLOCKED, BUSY_STATES, CHARGING, DOWN_STATES, STATE_NAMES, TRAVEL_STATES, SimResult, config_dict
 
 
 def run_id_of(res: SimResult) -> str:
     c = res.config
     alloc = f"{c.allocator}{c.aging:g}" if c.allocator == "hungarian_aging" else c.allocator
-    return f"n{c.n_robots}_{alloc}_load{c.load:g}_s{c.seed}"
+    health = ""
+    if c.health_on:  # keep health arms apart; runs without health keep their v0.1 ids
+        health = (f"_f{c.faults:g}_t{c.techs}_{c.maintenance}" + ("_bat" if c.battery else "")
+                  + ("_cor" if c.tech_corridors else ""))
+    return f"n{c.n_robots}_{alloc}_load{c.load:g}{health}_s{c.seed}"
 
 
 def to_frames(res: SimResult, run_id: str | None = None) -> dict[str, pd.DataFrame]:
@@ -133,6 +137,7 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
         "techs": cfg.techs if cfg.health_on else float("nan"),
         "maintenance": cfg.maintenance,
         "battery": cfg.battery,
+        "corridors": cfg.tech_corridors,
         "load": cfg.load,
         "orders_per_h": res.rate * 3600,
         "throughput_per_h": len(completed) / hours,
@@ -176,9 +181,16 @@ def health_kpis(res: SimResult) -> dict:
         "mtbf_h": up_hours / len(fails) if fails else float("nan"),
         "mttr_s": float(np.mean([j["end"] - j["created"] for j in repaired])) if repaired else float("nan"),
         "repair_wait_s": float(np.mean([j["arrive"] - j["created"] for j in repaired])) if repaired else float("nan"),
+        "repair_queue_s": float(np.mean([j["assigned"] - j["created"] for j in repaired])) if repaired else float("nan"),
+        "tech_walk_s": float(np.mean([j["arrive"] - j["assigned"] for j in repaired])) if repaired else float("nan"),
+        "corridor_reroutes": res.reroutes,
         "blocked_share": float((S == BLOCKED).mean()),
         "charging_share": float((S == CHARGING).mean()),
     }
+    if res.tech_traj is not None:
+        out["tech_conflicts"] = len(find_tech_conflicts(res.traj, res.tech_traj, res.grid))
+        out["robots_on_tech_bases"] = int(np.isin(res.traj, res.tech_bases).sum())
+        out["tech_at_base_share"] = float((res.tech_traj[w0:] == np.array(res.tech_bases)[None, :]).mean())
     if res.soc is not None:
         out["soc_min"] = float(res.soc[w0:].min())
         out["soc_mean"] = float(res.soc[w0:].mean())

@@ -113,3 +113,60 @@ def test_failure_on_another_robots_future_parking_cell(grid):
     assert hit is not None, "scenario did not occur; pick another seed"
     assert find_conflicts(np.array(traj), grid) == []
     assert not f.robots[hit[0]].failed  # repaired and moving again
+
+
+# ----------------------------------------------------------------- technician corridors
+def test_state_codes_match_technicians_module():
+    from fleetsim import sim, technicians
+
+    assert technicians.BLOCKED_STATE == sim.BLOCKED and technicians.REPAIR_STATE == sim.REPAIR
+
+
+def test_timer_crew_reproduces_t2b_exactly(grid):
+    """The technician refactor must not change the default (timer) model."""
+    row = pd.read_csv("results/T2b/runs.csv").query("faults == 12 and techs == 2 and seed == 3").iloc[0]
+    s = analytics.summarize(run(SimConfig(n_robots=50, load=1.0, allocator="nearest", faults=12, techs=2, initial_wear=0.6, seed=3),
+                                grid=grid), check_collisions=False)
+    for k in ("throughput_per_h", "availability", "mttr_s", "failures"):
+        assert s[k] == pytest.approx(row[k], abs=1e-9)
+
+
+def test_corridors_keep_technicians_and_robots_apart(grid):
+    from fleetsim.checker import find_tech_conflicts
+
+    cfg = SimConfig(n_robots=45, load=1.0, allocator="nearest", faults=12, techs=2, initial_wear=0.7,
+                    ticks=2400, warmup=0, seed=5, tech_corridors=True)
+    res = run(cfg, grid=grid)
+    assert find_conflicts(res.traj, grid) == []
+    assert find_tech_conflicts(res.traj, res.tech_traj, grid) == []  # incl. technicians never jumping cells
+    assert not np.isin(res.traj, res.tech_bases).any()  # robots never enter a technician base
+    assert any(j["end"] is not None for j in res.jobs)
+    assert res.reroutes > 0  # robots did yield to corridors
+    # the same seed has the same robot homes and orders with corridors off
+    off = Fleet(SimConfig(n_robots=45, load=1.0, allocator="nearest", faults=12, techs=2, initial_wear=0.7, seed=5), grid=grid)
+    assert off.homes == res.homes
+
+
+def test_technician_walks_out_repairs_from_next_cell_and_returns(grid):
+    f = Fleet(SimConfig(n_robots=20, load=1.0, allocator="nearest", maintenance="condition", service_wear=2.0,
+                        techs=1, seed=2, tech_corridors=True), grid=grid)
+    for t in range(300):
+        f.step(t)
+    victim = next(r for r in f.robots if r.order is not None and r.legs and r.pos(300) // grid.width > 25)
+    f._stop(victim, 300, "motor_l")
+    tech, job = f.crew.techs[0], victim.job
+    stand = left = home = None
+    for t in range(301, 1500):
+        f.step(t)
+        p = tech.pos(t)
+        assert all(r.pos(t) != p for r in f.robots)
+        if left is None and p != tech.base:
+            left = t
+        if stand is None and job["status"] == "repairing":
+            stand = p
+        if job["status"] == "done" and home is None and p == tech.base:
+            home = t
+    assert left is not None and stand is not None and home is not None
+    assert stand in grid.neighbors[f._repair_cells[job["id"]]]  # repaired from the next cell, not on top of the robot
+    assert job["end"] - job["start"] == 300 and not victim.failed
+
