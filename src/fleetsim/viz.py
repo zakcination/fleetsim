@@ -15,7 +15,7 @@ from matplotlib.colors import ListedColormap  # noqa: E402
 
 from .sim import BUSY_STATES, SimResult  # noqa: E402
 
-ALLOC_COLORS = {"greedy": "#4C72B0", "hungarian(k=5)": "#DD8452"}
+ALLOC_COLORS = {"greedy": "#4C72B0", "hungarian(k=5)": "#DD8452", "nearest": "#55A868"}
 
 
 def benchmark_chart(summary: pd.DataFrame, path: str | Path) -> None:
@@ -31,8 +31,9 @@ def benchmark_chart(summary: pd.DataFrame, path: str | Path) -> None:
     for ax, (col, title) in zip(axes, panels):
         for (alloc, load), g in summary.groupby(["allocator", "load"]):
             g = g.sort_values("n_robots")
-            ax.plot(g["n_robots"], g[col], styles[load], marker="o",
-                    color=ALLOC_COLORS.get(alloc, None), label=f"{alloc}, load {load:g}")
+            yerr = g[f"{col}_ci"] if f"{col}_ci" in g else None
+            ax.errorbar(g["n_robots"], g[col], yerr=yerr, fmt=styles[load], marker="o", capsize=3,
+                        color=ALLOC_COLORS.get(alloc, None), label=f"{alloc}, load {load:g}")
         ax.set_title(title, fontsize=10)
         ax.set_xlabel("robots")
         ax.set_xticks(sorted(summary["n_robots"].unique()))

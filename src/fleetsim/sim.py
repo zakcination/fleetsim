@@ -24,6 +24,7 @@ class SimConfig:
     n_robots: int = 10
     allocator: str = "greedy"  # "greedy" | "hungarian"
     k: int = 5  # Hungarian re-solve period (ticks)
+    aging: float = 0.25  # hungarian_aging: seconds of travel traded per second of order age
     ticks: int = 3600  # measured horizon (1 tick = 1 s)
     warmup: int = 600  # extra ticks simulated before measurement starts
     load: float = 0.85  # offered load as a fraction of free-flow fleet capacity
@@ -107,7 +108,7 @@ def run(cfg: SimConfig, grid: Grid | None = None, log_progress: bool = False) ->
     homes = grid.choose_parking(cfg.n_robots)
     rate = cfg.rate if cfg.rate is not None else cfg.load * cfg.n_robots / estimate_cycle_time(grid, homes, cfg, rng)
     stream = OrderStream(grid.pods, grid.stations, rate, seed=cfg.seed + 1)
-    allocator = make_allocator(cfg.allocator, k=cfg.k)
+    allocator = make_allocator(cfg.allocator, k=cfg.k, aging=cfg.aging)
 
     rt = ReservationTable()
     robots = []
