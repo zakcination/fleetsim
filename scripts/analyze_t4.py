@@ -1,4 +1,9 @@
-"""Analyse trial T4 (technician corridors). Run the bench command in docs/trials/T4-technician-corridors.md first."""
+"""Analyse trials T4 and T4b (technician corridors): ``python scripts/analyze_t4.py [T4|T4b]``.
+
+Run the bench command in the trial's write-up under docs/trials/ first.
+"""
+
+import sys
 
 import matplotlib
 
@@ -16,7 +21,8 @@ def ci(x) -> tuple[float, float, float]:
     return m, m - h, m + h
 
 
-runs = pd.read_csv("results/T4/runs.csv")
+NAME = sys.argv[1] if len(sys.argv) > 1 else "T4"
+runs = pd.read_csv(f"results/{NAME}/runs.csv")
 print("runs", len(runs), "| robot collisions", int(runs.collisions.sum()))
 on = runs[runs.corridors]
 print("corridor arms: technician conflicts", int(on.tech_conflicts.sum()), "| robots on technician bases", int(on.robots_on_tech_bases.sum()))
@@ -57,6 +63,18 @@ axes[2].set_title("Mean time to repair (s)", fontsize=10)
 for ax in axes:
     ax.set_xticks([0, 1], ["faults ×4", "faults ×12"]); ax.set_xlim(-0.6, 1.6); ax.grid(alpha=0.3)
 axes[1].legend(frameon=False, fontsize=8)
-fig.suptitle("Trial T4 · 50 robots, 2 technicians, batteries off · 10 seeds per cell, paired, 95% intervals", fontsize=11)
-fig.tight_layout(); fig.savefig("results/T4/t4.png", dpi=150)
-print("wrote results/T4/t4.png")
+fig.suptitle(f"Trial {NAME} · 50 robots, 2 technicians, batteries off · 10 seeds per cell, paired, 95% intervals", fontsize=11)
+fig.tight_layout(); fig.savefig(f"results/{NAME}/{NAME.lower()}.png", dpi=150)
+print(f"wrote results/{NAME}/{NAME.lower()}.png")
+
+if NAME != "T4":  # did the base fix help? Same seeds, corridor arms, against T4
+    old = pd.read_csv("results/T4/runs.csv")
+    for f in (4.0, 12.0):
+        a = runs[(runs.faults == f) & runs.corridors].set_index("seed")
+        b = old[(old.faults == f) & old.corridors].set_index("seed")
+        m, lo, hi = ci(a.throughput_per_h / b.throughput_per_h)
+        print(f"faults x{f:g}: corridor arm tasks/h {NAME} / T4 = {m:.3f} [{lo:.3f}, {hi:.3f}]"
+              f" | mean {b.throughput_per_h.mean():.1f} -> {a.throughput_per_h.mean():.1f}")
+    on = runs[runs.corridors].sort_values("throughput_per_h")
+    print("slowest corridor runs:")
+    print(on[["run_id", "throughput_per_h", "failures", "availability", "mttr_s", "repair_queue_s", "blocked_share", "wall_s"]].head(4).to_string(index=False))
