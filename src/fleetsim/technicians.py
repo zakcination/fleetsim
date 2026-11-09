@@ -8,7 +8,8 @@ Two crews share one interface (``step``, ``on_freeze``, ``fix``):
 * :class:`CorridorCrew` (``SimConfig.tech_corridors=True``). A technician is an
   agent in the reservation table with **priority over robots**. The whole duty
   is booked at once: walk out, stand on a cell next to the robot, repair, walk
-  back to a base cell that robots may never enter. Robots whose booked routes
+  back to a base cell that robots may never enter. If the way back is closed
+  when the job is booked, the technician still goes and looks for it afterwards. Robots whose booked routes
   cross that corridor replan or stop; a robot that stops on a corridor makes the
   technician walk around it. No robot ever shares a cell with a technician.
 """
@@ -191,11 +192,13 @@ class CorridorCrew:
                 p = bfs_path(grid, cur, stand, obs)
                 if p is not None and (best is None or len(p) < len(best)):
                     best = p
-            back = bfs_path(grid, best[-1], tech.base, obs) if best is not None else None
-            if back is not None:
+            if best is not None:
+                # No way home right now (say a stopped robot seals the base)? Do the job anyway and look
+                # for the way home after it: a technician who refuses stands idle while robots wait (T4b).
+                back = bfs_path(grid, best[-1], tech.base, obs)
                 job["arrive"] = t + len(best) - 1
-                full = best + [best[-1]] * H.REPAIR_S[job["component"]] + back[1:]
-            else:  # cannot reach the robot (or get home again) right now: try again shortly
+                full = best + [best[-1]] * H.REPAIR_S[job["component"]] + (back[1:] if back is not None else [])
+            else:  # cannot reach the robot right now: try again shortly
                 job["status"], job["tech"] = "waiting", None
                 self.retry_at[job["id"]] = t + 5
                 tech.job = job = None
@@ -276,6 +279,7 @@ class CorridorCrew:
                 f.stop_version += 1
                 job["status"] = "done"
                 tech.job = None
+                tech.dirty = tech.path[-1] != tech.base  # booked without a way home: look for one now
                 f._finish_repair(r, t, job)
         waiting = [j for j in f.jobs if j["status"] == "waiting" and self.retry_at.get(j["id"], 0) <= t]
         for tech in self.techs:

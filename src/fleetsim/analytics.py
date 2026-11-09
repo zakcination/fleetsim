@@ -165,6 +165,26 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
     return out
 
 
+def tech_idle_with_work(res: SimResult) -> np.ndarray:
+    """``[T, techs]`` bool: the technician has no job in this second although a repair job is waiting."""
+    T, K = res.tech_traj.shape
+    waiting, busy = np.zeros(T, dtype=bool), np.zeros((T, K), dtype=bool)
+    for j in res.jobs:
+        open_ = j["status"] == "waiting" or j["assigned"] is None
+        waiting[j["created"]:T if open_ else j["assigned"]] = True
+        if not open_ and j["tech"] is not None:
+            busy[j["assigned"]:T if j["end"] is None else j["end"], j["tech"]] = True
+    return waiting[:, None] & ~busy
+
+
+def _longest_run(x: np.ndarray) -> int:
+    best = cur = 0
+    for v in x:
+        cur = cur + 1 if v else 0
+        best = max(best, cur)
+    return best
+
+
 def health_kpis(res: SimResult) -> dict:
     """Availability, MTBF, MTTR and battery KPIs over the measured window."""
     cfg = res.config
@@ -192,6 +212,9 @@ def health_kpis(res: SimResult) -> dict:
         out["tech_conflicts"] = len(find_tech_conflicts(res.traj, res.tech_traj, res.grid))
         out["robots_on_tech_bases"] = int(np.isin(res.traj, res.tech_bases).sum())
         out["tech_at_base_share"] = float((res.tech_traj[w0:] == np.array(res.tech_bases)[None, :]).mean())
+        idle = tech_idle_with_work(res)[w0:]
+        out["tech_idle_with_work_share"] = float(idle.mean())
+        out["tech_idle_with_work_max_s"] = int(max(_longest_run(idle[:, k]) for k in range(idle.shape[1])))
     if res.soc is not None:
         out["soc_min"] = float(res.soc[w0:].min())
         out["soc_mean"] = float(res.soc[w0:].mean())

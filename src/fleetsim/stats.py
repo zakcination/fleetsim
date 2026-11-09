@@ -17,7 +17,7 @@ METRICS = [
     "order_wait_s", "order_wait_p95_s", "order_wait_p99_s", "order_wait_max_s",
     "backlog_end", "plan_ms_mean", "plan_fail_rate", "collisions",
     "availability", "failures", "services", "mtbf_h", "mttr_s", "repair_wait_s", "repair_queue_s", "tech_walk_s", "blocked_share", "charging_share",
-    "corridor_reroutes", "tech_conflicts", "idle_soc_mean", "idle_below_90_share", "soc_min",
+    "corridor_reroutes", "tech_conflicts", "tech_idle_with_work_share", "tech_idle_with_work_max_s", "idle_soc_mean", "idle_below_90_share", "soc_min",
 ]
 
 

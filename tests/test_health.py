@@ -254,3 +254,39 @@ def test_a_low_battery_robot_takes_the_charger_from_a_top_up(grid):
             break
     assert b.state(t) == CHARGING and a.hp.soc < 100 and not a.topup
     assert find_conflicts(np.array(rows), grid) == []
+
+
+def test_technician_cut_off_from_base_still_takes_the_job(grid):
+    """T4b, seed 2: a stopped robot sealed a base and the technician refused every job from then on."""
+    from fleetsim.technicians import bfs_path
+
+    f = Fleet(SimConfig(n_robots=20, load=1.0, allocator="nearest", maintenance="condition", service_wear=2.0,
+                        techs=1, seed=2, tech_corridors=True), grid=grid)
+    for t in range(300):
+        f.step(t)
+    first = next(r for r in f.robots if r.order is not None and r.legs and r.pos(300) // grid.width > 25)
+    f._stop(first, 300, "motor_l")
+    tech, crew = f.crew.techs[0], f.crew
+    real, second, job2, done_at = crew._obstacles, None, None, None
+    for t in range(301, 2400):
+        f.step(t)
+        assert all(r.pos(t) != tech.pos(t) for r in f.robots)
+        if second is None and first.job["status"] == "repairing":  # the technician is out: seal the base, break a second robot
+            crew._obstacles = lambda tech_, t_: real(tech_, t_) | set(grid.neighbors[tech.base])
+            second = next(r for r in f.robots if r is not first and r.order is not None and r.legs and r.frozen is None)
+            f._stop(second, t, "motor_l")
+            job2 = second.job
+        if job2 is not None and job2["status"] == "done" and done_at is None:
+            done_at = t
+            assert tech.pos(t) != tech.base and bfs_path(grid, tech.pos(t), tech.base, crew._obstacles(tech, t)) is None
+            crew._obstacles = real  # the base opens again
+    assert done_at is not None and not first.failed and not second.failed
+    assert tech.pos(2399) == tech.base  # and the technician found the way home afterwards
+
+
+def test_t4b_seed_2_no_longer_leaves_a_technician_idle_while_robots_wait(grid):
+    res = run(SimConfig(n_robots=50, load=1.0, allocator="nearest", faults=12, techs=2, initial_wear=0.6, seed=2,
+                        tech_corridors=True, ticks=2400), grid=grid)  # seconds 0-2,999; the deadlock began at 2,785
+    idle = analytics.tech_idle_with_work(res)
+    assert max(analytics._longest_run(idle[:, k]) for k in range(2)) < 120
+    assert analytics.summarize(res)["tech_conflicts"] == 0

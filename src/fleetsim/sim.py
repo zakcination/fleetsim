@@ -246,7 +246,9 @@ class Fleet:
         if dist is None:
             if len(self._reach_cache) > 256:
                 self._reach_cache.clear()
-            dist = self._reach_cache[key] = self.grid.bfs(start, blocked=self.stopped_cells - {start})
+            # technician bases count too: robots may never enter them (found in T4b: a robot stopped on
+            # the one cell beside two bases closed a station, and every route to it searched to the limit)
+            dist = self._reach_cache[key] = self.grid.bfs(start, blocked=(self.stopped_cells | self.rt.forbid) - {start})
         return all(dist[g] != UNREACHABLE for g in goals)
 
     def _try_plan(self, r: Robot, t: int, legs: list[Leg], order_id: int = -1, n_free: int = 0,
