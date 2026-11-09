@@ -7,7 +7,7 @@ the robot's current cell to the order's pod slot (BFS distance on the static map
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Callable, Protocol
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -36,10 +36,31 @@ def _cost_matrix(robots: list[tuple[int, int]], orders: list[Order], grid: Grid)
     return cost
 
 
+ALLOCATORS: dict[str, Callable[..., "Allocator"]] = {}
+
+
+def register_allocator(name: str):
+    """Class decorator: make a dispatch policy available as ``SimConfig(allocator=name)``.
+
+    The class is constructed with keyword arguments from the simulation config
+    (currently ``k``); accept ``**kwargs`` if you don't need them.
+    """
+
+    def deco(cls):
+        ALLOCATORS[name] = cls
+        return cls
+
+    return deco
+
+
+@register_allocator("greedy")
 class GreedyAllocator:
     """Every tick, the oldest pending order takes the nearest free robot (FIFO)."""
 
     name = "greedy"
+
+    def __init__(self, **_):
+        pass
 
     def assign(self, t, robots, pending, grid):
         if not robots or not pending:
@@ -59,6 +80,42 @@ class GreedyAllocator:
         return out
 
 
+@register_allocator("nearest")
+class NearestPairAllocator:
+    """Every tick, repeatedly match the globally closest (free robot, order) pair.
+
+    Same order window as Hungarian, no batching delay, but ignores order age.
+    This is the baseline that separates "optimal matching" from "serving
+    nearby orders first" when comparing against Hungarian.
+    """
+
+    name = "nearest"
+
+    def __init__(self, window_factor: float = 2.0, min_window: int = 20, **_):
+        self.window_factor = window_factor
+        self.min_window = min_window
+
+    def assign(self, t, robots, pending, grid):
+        if not robots or not pending:
+            return []
+        window = max(self.min_window, int(self.window_factor * len(robots)))
+        orders = pending[:window]
+        cost = _cost_matrix(robots, orders, grid)
+        flat = np.argsort(cost, axis=None, kind="stable")
+        used_r, used_o, out = set(), set(), []
+        for f in flat:
+            r, c = divmod(int(f), cost.shape[1])
+            if r in used_r or c in used_o or cost[r, c] >= BIG:
+                continue
+            used_r.add(r)
+            used_o.add(c)
+            out.append((robots[r][0], orders[c]))
+            if len(out) == min(len(robots), len(orders)):
+                break
+        return out
+
+
+@register_allocator("hungarian")
 class HungarianAllocator:
     """Every ``k`` ticks, solve min-total-travel assignment with linear_sum_assignment.
 
@@ -66,7 +123,7 @@ class HungarianAllocator:
     optimiser cannot starve old orders indefinitely when there is a backlog.
     """
 
-    def __init__(self, k: int = 5, window_factor: float = 2.0, min_window: int = 20) -> None:
+    def __init__(self, k: int = 5, window_factor: float = 2.0, min_window: int = 20, **_) -> None:
         self.k = k
         self.window_factor = window_factor
         self.min_window = min_window
@@ -83,8 +140,7 @@ class HungarianAllocator:
 
 
 def make_allocator(name: str, k: int = 5) -> Allocator:
-    if name == "greedy":
-        return GreedyAllocator()
-    if name.startswith("hungarian"):
-        return HungarianAllocator(k=k)
-    raise ValueError(f"unknown allocator {name!r}")
+    try:
+        return ALLOCATORS[name](k=k)
+    except KeyError:
+        raise ValueError(f"unknown allocator {name!r}; registered: {sorted(ALLOCATORS)}") from None

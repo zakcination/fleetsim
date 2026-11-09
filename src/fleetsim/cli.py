@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import analytics, viz
+from .allocation import ALLOCATORS
 from .sim import SimConfig, run
 
 
@@ -34,7 +35,7 @@ def _cmd_bench(a: argparse.Namespace) -> None:
     rows = []
     for load in a.loads:
         for n in a.robots:
-            for alloc in ("greedy", "hungarian"):
+            for alloc in a.allocators:
                 cfg = SimConfig(n_robots=n, allocator=alloc, k=a.k, ticks=a.ticks, warmup=a.warmup,
                                 load=load, seed=a.seed)
                 res = run(cfg)
@@ -67,7 +68,7 @@ def main(argv: list[str] | None = None) -> None:
 
     r = sub.add_parser("run", help="simulate one configuration")
     r.add_argument("--n", type=int, default=50)
-    r.add_argument("--allocator", choices=["greedy", "hungarian"], default="greedy")
+    r.add_argument("--allocator", choices=sorted(ALLOCATORS), default="greedy")
     r.add_argument("--k", type=int, default=5)
     r.add_argument("--ticks", type=int, default=3600)
     r.add_argument("--warmup", type=int, default=600)
@@ -80,6 +81,7 @@ def main(argv: list[str] | None = None) -> None:
     b = sub.add_parser("bench", help="N x allocator x load sweep -> results/")
     b.add_argument("--robots", type=int, nargs="+", default=[10, 50, 100])
     b.add_argument("--loads", type=float, nargs="+", default=[0.85, 1.3])
+    b.add_argument("--allocators", nargs="+", choices=sorted(ALLOCATORS), default=["greedy", "hungarian"])
     b.add_argument("--k", type=int, default=5)
     b.add_argument("--ticks", type=int, default=3600)
     b.add_argument("--warmup", type=int, default=600)
@@ -90,7 +92,7 @@ def main(argv: list[str] | None = None) -> None:
 
     gf = sub.add_parser("gif", help="render an animation")
     gf.add_argument("--n", type=int, default=50)
-    gf.add_argument("--allocator", choices=["greedy", "hungarian"], default="hungarian")
+    gf.add_argument("--allocator", choices=sorted(ALLOCATORS), default="hungarian")
     gf.add_argument("--load", type=float, default=1.0)
     gf.add_argument("--t-start", type=int, default=300)
     gf.add_argument("--frames", type=int, default=150)

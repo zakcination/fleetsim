@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from fleetsim import analytics
-from fleetsim.allocation import GreedyAllocator, HungarianAllocator
+from fleetsim.allocation import ALLOCATORS, GreedyAllocator, HungarianAllocator, NearestPairAllocator, register_allocator
 from fleetsim.checker import find_conflicts
 from fleetsim.grid import Grid, read_map_lines, DEFAULT_MAP
 from fleetsim.orders import Order, OrderStream
@@ -54,7 +54,36 @@ def test_hungarian_beats_or_ties_greedy_on_total_cost(grid):
     assert total(h) <= total(g)
 
 
-@pytest.mark.parametrize("allocator", ["greedy", "hungarian"])
+def test_nearest_pair_is_a_valid_matching(grid):
+    rng = np.random.default_rng(5)
+    homes = grid.choose_parking(10)
+    robots = list(enumerate(homes))
+    pending = [Order(i, int(rng.choice(grid.pods)), grid.stations[0], 0) for i in range(25)]
+    pairs = NearestPairAllocator().assign(0, robots, pending, grid)
+    assert len(pairs) == 10
+    assert len({r for r, _ in pairs}) == 10 and len({o.id for _, o in pairs}) == 10
+
+
+def test_custom_allocator_plugs_in(grid):
+    @register_allocator("test_round_robin")
+    class RoundRobin:
+        name = "test_round_robin"
+
+        def __init__(self, **_):
+            pass
+
+        def assign(self, t, robots, pending, grid):
+            return list(zip([r for r, _ in robots], pending))
+
+    try:
+        res = run(SimConfig(n_robots=8, allocator="test_round_robin", ticks=300, warmup=0, seed=2), grid=grid)
+        assert find_conflicts(res.traj, grid) == []
+        assert any(o.assigned >= 0 for o in res.orders)
+    finally:
+        ALLOCATORS.pop("test_round_robin", None)
+
+
+@pytest.mark.parametrize("allocator", ["greedy", "nearest", "hungarian"])
 def test_simulation_is_collision_free(grid, allocator):
     cfg = SimConfig(n_robots=40, allocator=allocator, ticks=600, warmup=100, load=1.2, seed=7)
     res = run(cfg, grid=grid)

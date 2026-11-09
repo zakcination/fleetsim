@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fleetsim</title>
+<meta name="description" content="Open-source simulator for robotic fulfillment fleets: task allocation, multi-agent path finding and throughput analytics, with a live 3D web demo.">
+<meta property="og:title" content="fleetsim">
+<meta property="og:description" content="Robot fulfillment fleet simulator: task allocation · MAPF · analytics. Open source, MIT.">
+<meta property="og:image" content="media/social-preview.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..800&family=Source+Serif+4:opsz,wght@8..60,400..600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Landing: a dark "lights-off warehouse" hero (video loop), then a light concrete page body.
+   Tokens shared with fleetsim Live and the Field Guide. */
+:root {
+  --bg: #f2f3ef; --card: #fbfbf8; --fg: #1d221f; --muted: #5b645d; --line: #c9cec5;
+  --accent: #d9680a; --accent-ink: #a94f05; --station: #3a9a4c; --night: #0d100e; --night-fg: #eef0eb;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #131614; --card: #1f2420; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35; --accent: #f08a2e; --accent-ink: #f6a45a; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.6; }
+img, video { max-width: 100%; display: block; }
+a { color: var(--accent-ink); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text-wrap: balance; }
+
+.hero { position: relative; background: var(--night); color: var(--night-fg); overflow: hidden; }
+.hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.55; }
+.hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(13,16,14,0.92) 0%, rgba(13,16,14,0.55) 55%, rgba(13,16,14,0.2) 100%); }
+.hero .wrap { position: relative; z-index: 1; padding-block: calc(env(safe-area-inset-top, 0px) + 5rem) 5rem; }
+.eyebrow { font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.hero .eyebrow { color: #f0a25c; }
+.hero h1 { font-size: clamp(3rem, 2rem + 6vw, 6.5rem); font-weight: 800; font-stretch: 122%; letter-spacing: -0.025em; margin-top: 0.6rem; }
+.hero h1::after { content: ""; display: block; width: 3.2rem; height: 0.35rem; background: var(--accent); margin-top: 1rem; }
+.hero p { max-width: 36rem; font-size: 1.2rem; color: #d7dbd4; }
+.ctas { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1.8rem; }
+.btn { font-family: var(--font-display); font-weight: 700; font-size: 0.98rem; text-decoration: none; padding: 0.75rem 1.15rem; border-radius: 7px; border: 1px solid rgba(238,240,235,0.35); color: var(--night-fg); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:hover { border-color: var(--night-fg); }
+.btn:focus-visible { outline: 2px solid #f0a25c; outline-offset: 3px; }
+
+section { padding-block: 3.5rem 0; }
+section h2 { font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.3rem); font-weight: 750; font-stretch: 112%; }
+.lede { color: var(--muted); max-width: 46rem; }
+.teaser { margin-top: 1.4rem; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; }
+.teaser video { width: 100%; height: 100%; object-fit: cover; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1.4rem; }
+.card { background: var(--card); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card img { aspect-ratio: 16 / 10; object-fit: cover; width: 100%; }
+.card .body { padding: 0.9rem 1rem 1.1rem; display: grid; gap: 0.4rem; }
+.card h3 { font-size: 1.1rem; font-weight: 700; }
+.card p { margin: 0; font-size: 0.95rem; color: var(--muted); }
+.card a.more { font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; text-decoration: none; }
+.code { background: var(--card); border-radius: 8px; padding: 1rem 1.1rem; font-family: var(--font-mono); font-size: 0.86rem; overflow-x: auto; margin-top: 1.2rem; }
+.code div::before { content: "$ "; color: var(--muted); }
+footer { margin-top: 4rem; padding-block: 1.5rem 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { .hero video { display: none; } }
+</style>
+</head>
+<body>
+<header class="hero">
+  <video autoplay muted loop playsinline poster="media/teaser-poster.jpg" aria-hidden="true">
+    <source src="media/floor-loop.mp4" type="video/mp4">
+  </video>
+  <div class="wrap">
+    <div class="eyebrow">open source · MIT</div>
+    <h1>fleetsim</h1>
+    <p>A simulator for Amazon-style robotic fulfillment fleets: who fetches which pod, how a hundred robots share narrow aisles without a single collision, and what it does to throughput.</p>
+    <div class="ctas">
+      <a class="btn primary" href="live.html">Open the live 3D simulator</a>
+      <a class="btn" href="guide.html">Read the field guide</a>
+      <a class="btn" href="https://github.com/zakcination/fleetsim">Code on GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <div class="eyebrow" style="color:var(--accent-ink)">teaser</div>
+    <h2>Lights on</h2>
+    <div class="teaser"><video controls preload="metadata" poster="media/teaser-poster.jpg"><source src="media/teaser.mp4" type="video/mp4"></video></div>
+  </section>
+
+  <section>
+    <h2>Explore</h2>
+    <p class="lede">Steer it, learn it, or extend it. Every number fleetsim reports is computed from a tick-by-tick log you can query yourself.</p>
+    <div class="cards">
+      <article class="card">
+        <img src="media/hero.webp" alt="Concept render: orange drive units carry blue pods between shelving rows" loading="lazy">
+        <div class="body"><h3>Live simulator</h3><p>Pull sliders for fleet size, demand, pick time and stations; switch dispatch policy and path planner; watch throughput, waits and collisions respond.</p><a class="more" href="live.html">Open →</a></div>
+      </article>
+      <article class="card">
+        <img src="media/space-time.webp" alt="Illustration: robot paths as threads climbing through stacked time layers" loading="lazy">
+        <div class="body"><h3>Field guide</h3><p>Space-time A*, reservation tables, prioritized planning, the Hungarian method and Little's law, with in-browser demos.</p><a class="more" href="guide.html">Read →</a></div>
+      </article>
+      <article class="card">
+        <img src="media/pick-station-concept.webp" alt="Concept render of a future robotic pick station with a camera-guided arm" loading="lazy">
+        <div class="body"><h3>Roadmap</h3><p>Stronger MAPF solvers, pod storage policies, a ROS 2 digital twin and a perception pick station. Pick a track and open a pull request.</p><a class="more" href="https://github.com/zakcination/fleetsim/blob/main/docs/ROADMAP.md">See tracks →</a></div>
+      </article>
+    </div>
+    <div class="code" aria-label="Quick start commands">
+      <div>pip install git+https://github.com/zakcination/fleetsim.git</div>
+      <div>fleetsim run --n 50 --allocator hungarian --load 1.3</div>
+      <div>fleetsim bench --out results</div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  Map: League of Robot Runners Start-Kit (MIT). Hero art, concept renders and video clips are AI-generated with Higgsfield and are illustrations, not simulator output; the simulator's own visuals are the live demo and <code>docs/fleet.gif</code>.
+</footer>
+</body>
+</html>

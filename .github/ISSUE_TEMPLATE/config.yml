@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Learn the concepts first
+    url: https://github.com/zakcination/fleetsim/blob/main/docs/ROADMAP.md
+    about: Roadmap, research tracks and good first issues.

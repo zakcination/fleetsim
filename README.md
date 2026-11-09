@@ -1,9 +1,15 @@
+![fleetsim: robotic fulfillment fleet](docs/media/hero.webp)
+
 # fleetsim
 
 [![CI](https://github.com/zakcination/fleetsim/actions/workflows/ci.yml/badge.svg)](https://github.com/zakcination/fleetsim/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Live demo](https://img.shields.io/badge/demo-live%203D%20simulator-d9680a)](https://zakcination.github.io/fleetsim/live.html)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-3a9a4c)](CONTRIBUTING.md)
 
-**Amazon-style fulfillment fleet: task allocation + MAPF + throughput analytics.**
+**Amazon-style fulfillment fleet: task allocation + MAPF + throughput analytics.** Open source, MIT.
+
+**▶ [Live 3D simulator](https://zakcination.github.io/fleetsim/live.html)**: steer robots, demand, stations, dispatch policy and planner with sliders · **📖 [Field guide](https://zakcination.github.io/fleetsim/guide.html)**: the concepts, with in-browser demos · **🎬 [Teaser](docs/media/teaser.mp4)**
 
 `fleetsim` simulates a goods-to-person warehouse. Drive units fetch storage pods, bring them to pick stations and put them back. The project is built in layers. v0.1 is the foundation: a grid world from a real benchmark map, a collision-free multi-robot planner, two task-allocation policies, and tick-level analytics. Later layers add ROS 2 nodes, Gazebo/Isaac visualisation, a perception pick station and learned policies (see [Roadmap](#roadmap)).
 
@@ -19,7 +25,7 @@
 | Orders | Poisson stream; each order = *fetch pod p -> station s -> return p*, with p and s uniform | [`orders.py`](src/fleetsim/orders.py) |
 | Motion planning | Space-time A* with prioritized planning over a reservation table (vertex + edge/swap conflicts + parked robots). One search per errand: robot -> pod (lift 2 s) -> station (pick 10 s) -> pod (drop 2 s) -> home | [`planner.py`](src/fleetsim/planner.py) |
 | Collision check | Independent checker over logged trajectories: vertex, swap, teleport, obstacle | [`checker.py`](src/fleetsim/checker.py) |
-| Task allocation | (a) greedy: oldest order takes the nearest free robot, every tick; (b) Hungarian: `scipy.optimize.linear_sum_assignment` on travel-time costs, re-solved every k = 5 ticks | [`allocation.py`](src/fleetsim/allocation.py) |
+| Task allocation | (a) greedy: oldest order takes the nearest free robot, every tick; (b) Hungarian: `scipy.optimize.linear_sum_assignment` on travel-time costs, re-solved every k = 5 ticks; (c) nearest-pair greedy (added after v0.1 benchmarks). New policies plug in with `@register_allocator` | [`allocation.py`](src/fleetsim/allocation.py) |
 | Analytics | Every robot x tick logged to SQLite + Parquet; KPIs; matplotlib chart; SQL notebook | [`analytics.py`](src/fleetsim/analytics.py), [`notebooks/analytics.ipynb`](notebooks/analytics.ipynb) |
 
 ## Quickstart
@@ -97,6 +103,21 @@ Each run writes four tables to SQLite (`results/fleetsim.db`) and Parquet (`resu
 
 [`notebooks/analytics.ipynb`](notebooks/analytics.ipynb) computes every KPI above in plain SQL (CTEs, joins, conditional aggregates). It also builds a censored order-wait table, a congestion heatmap, planner runtime and station utilisation. The `.db` file (~250 MB) is git-ignored. Regenerate it with `fleetsim bench`.
 
+## Explore and contribute
+
+[![Teaser](docs/media/teaser-poster.jpg)](docs/media/teaser.mp4)
+
+| If you want to… | Go to |
+|---|---|
+| Play with a fleet in the browser | [`web/live.html`](web/live.html) (hosted on [GitHub Pages](https://zakcination.github.io/fleetsim/)) |
+| Learn the concepts step by step | [`web/guide.html`](web/guide.html) |
+| Add a dispatch policy, a map or a query | [`docs/EXTENDING.md`](docs/EXTENDING.md) |
+| Pick a research or engineering task | [`docs/ROADMAP.md`](docs/ROADMAP.md): MAPF, warehouse ops, ROS 2 twin, perception, simulation method, web |
+| Send a pull request | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Cite fleetsim | [`CITATION.cff`](CITATION.cff) |
+
+The repo ships a `ros:jazzy` devcontainer (`.devcontainer/`). CI runs the test suite, including the zero-collision simulation check, on Python 3.11 and 3.12.
+
 ## Design notes
 
 * **Pods and stations.** LoRR marks `S` (service point, traversable) for pick-ups and `E` (emitter, traversable) for deliveries. fleetsim treats each `S` cell as one pod's storage slot and each left-wall `E` as a pick station. Pods are not simulated as physical obstacles while carried. Like LoRR, the robot visits the slot, which is the standard abstraction in lifelong-MAPF benchmarks.
@@ -121,14 +142,15 @@ FAR lists building tools with AI coding agents as a plus, so here is what was ag
 |---|---|
 | Project brief, scope, metric choices, review | Human (author) |
 | Map loader, planner, checker, allocation, simulation, analytics, CLI, tests, notebook, chart/GIF, README draft | Claude Code (cloud agent), from the brief, in one session |
-| LICENSE, CI workflow, devcontainer | A second Claude Code session, working in parallel |
+| LICENSE, CI workflow, devcontainer, contributor docs, web pages, extension API | Claude Code (cloud agent) |
+| Hero art, concept renders, teaser and loop videos (`docs/media/`) | Generated with Higgsfield (GPT Image 2.6, Seedance 2.5) from agent-written prompts |
 | Interpretation of results and counterpoints above | Agent draft, to be checked by the author |
 
 Every number in this README comes from `fleetsim bench` (seed 0) and the notebook. None were typed in by hand.
 
 ## Credits
 
-Map: League of Robot Runners Start-Kit (MIT), see [`src/fleetsim/maps/README.md`](src/fleetsim/maps/README.md). Problem framing follows lifelong MAPF (Li et al., *Lifelong MAPF in Large-Scale Warehouses*, AAAI 2021) and prioritized planning with space-time A* (Silver, 2005).
+Map: League of Robot Runners Start-Kit (MIT), see [`src/fleetsim/maps/README.md`](src/fleetsim/maps/README.md). The images and videos in `docs/media/` are AI-generated illustrations made with Higgsfield. They are not simulator output; the simulator's own visuals are `docs/fleet.gif` and the live demo. Problem framing follows lifelong MAPF (Li et al., *Lifelong MAPF in Large-Scale Warehouses*, AAAI 2021) and prioritized planning with space-time A* (Silver, 2005).
 
 ## License
 

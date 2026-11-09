@@ -108,7 +108,7 @@ def summarize(res: SimResult, check_collisions: bool = True) -> dict:
     out = {
         "run_id": run_id_of(res),
         "n_robots": cfg.n_robots,
-        "allocator": cfg.allocator if cfg.allocator == "greedy" else f"hungarian(k={cfg.k})",
+        "allocator": f"hungarian(k={cfg.k})" if cfg.allocator == "hungarian" else cfg.allocator,
         "load": cfg.load,
         "orders_per_h": res.rate * 3600,
         "throughput_per_h": len(completed) / hours,

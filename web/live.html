@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>fleetsim Live</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..800&family=Source+Serif+4:opsz,wght@8..60,400..600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: control-room app. Top bar = run controls; left = 3D floor; right = live KPIs, trend lines and insights;
+   below = the knobs, each mechanism with its pros and cons; bottom = pinned runs for side-by-side comparison.
+   Palette shared with the fleetsim Field Guide: concrete neutrals, drive-unit orange, station green, pod blue. */
+:root {
+  --bg: #f2f3ef; --panel: #e7e9e3; --card: #fbfbf8; --fg: #1d221f; --muted: #5b645d; --line: #c9cec5;
+  --accent: #d9680a; --accent-ink: #a94f05; --station: #3a9a4c; --pod: #cfe0ee; --podbox: #6f93b8; --shelf: #3a403c;
+  --floor: #f7f8f5; --blue: #3567ae; --bad: #c93226; --warn: #b07a00; --good: #2f8a43;
+  --idle: #7d8a99; --home: #a3a8a2;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131614; --panel: #1b1f1c; --card: #222723; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35;
+    --accent: #f08a2e; --accent-ink: #f6a45a; --station: #5dbb6c; --pod: #2c3d4c; --podbox: #7fa6cc; --shelf: #0b0d0c;
+    --floor: #2a2f2b; --blue: #7aa3e0; --bad: #ef6a5c; --warn: #e0b04a; --good: #6cc77b; --idle: #8d99a6; --home: #8a918a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131614; --panel: #1b1f1c; --card: #222723; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35;
+  --accent: #f08a2e; --accent-ink: #f6a45a; --station: #5dbb6c; --pod: #2c3d4c; --podbox: #7fa6cc; --shelf: #0b0d0c;
+  --floor: #2a2f2b; --blue: #7aa3e0; --bad: #ef6a5c; --warn: #e0b04a; --good: #6cc77b; --idle: #8d99a6; --home: #8a918a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 3rem;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; line-height: 1.15; text-wrap: balance; }
+a { color: var(--accent-ink); }
+button:focus-visible, input:focus-visible, select:focus-visible, label:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--font-display); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); font-stretch: 110%; }
+
+/* top bar */
+.bar { max-width: 1400px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; padding-block: 1rem 0.8rem; }
+.brand { display: flex; align-items: baseline; gap: 0.7rem; margin-right: auto; min-width: 0; }
+.brand h1 { font-size: 1.65rem; font-weight: 800; font-stretch: 120%; letter-spacing: -0.01em; }
+.brand h1 b { color: var(--accent); font-weight: 800; }
+.brand .sub { color: var(--muted); font-size: 0.9rem; }
+.run { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+.clock { font-family: var(--font-mono); font-size: 1.05rem; font-weight: 600; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.3rem 0.6rem; font-variant-numeric: tabular-nums; }
+button {
+  font-family: var(--font-display); font-weight: 650; font-size: 0.84rem; background: var(--card); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 0.7rem; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); min-width: 5.2rem; }
+button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.speed { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-display); font-size: 0.82rem; font-weight: 600; }
+
+/* main grid */
+.app { max-width: 1400px; margin: 0 auto; display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 1100px) { .app { grid-template-columns: minmax(0, 1fr) 400px; } }
+.viewport { position: relative; background: var(--panel); border-radius: 10px; overflow: hidden; min-height: 320px; aspect-ratio: 99 / 72; max-height: 78vh; width: 100%; }
+@media (max-width: 700px) { .viewport { aspect-ratio: 4 / 3.6; } }
+.viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.views { position: absolute; top: 10px; right: 10px; display: flex; gap: 0.3rem; }
+.views button { font-size: 0.76rem; padding: 0.3rem 0.55rem; background: color-mix(in srgb, var(--card) 88%, transparent); }
+.views button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.legend { position: absolute; left: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; background: color-mix(in srgb, var(--card) 90%, transparent); border-radius: 6px; padding: 0.35rem 0.6rem; font-size: 0.76rem; font-family: var(--font-display); font-weight: 600; max-width: calc(100% - 20px); }
+.legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.sw { width: 0.75rem; height: 0.75rem; border-radius: 2px; display: inline-block; }
+.hint { position: absolute; left: 10px; top: 10px; font-size: 0.76rem; color: var(--muted); font-family: var(--font-display); background: color-mix(in srgb, var(--card) 85%, transparent); padding: 0.2rem 0.5rem; border-radius: 4px; }
+
+/* metrics side */
+.side { display: grid; gap: 0.8rem; align-content: start; min-width: 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.45rem; }
+.kpi { background: var(--card); border-radius: 7px; padding: 0.45rem 0.6rem; border: 1px solid transparent; }
+.kpi .k { font-family: var(--font-display); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.kpi .v { font-family: var(--font-mono); font-size: 1.22rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.kpi .u { font-size: 0.72rem; color: var(--muted); font-family: var(--font-mono); }
+.kpi.bad { border-color: var(--bad); } .kpi.bad .v { color: var(--bad); }
+.kpi.warn { border-color: var(--warn); } .kpi.warn .v { color: var(--warn); }
+.kpi.good .v { color: var(--good); }
+.panel { background: var(--card); border-radius: 8px; padding: 0.7rem 0.8rem; min-width: 0; }
+.panel h3 { font-size: 0.92rem; font-weight: 700; display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
+.trend canvas { width: 100%; height: 120px; display: block; margin-top: 0.4rem; }
+.trend-key { display: flex; gap: 0.8rem; font-size: 0.74rem; color: var(--muted); font-family: var(--font-display); font-weight: 600; flex-wrap: wrap; }
+.trend-key i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+.insights { list-style: none; padding: 0; margin: 0.4rem 0 0; display: grid; gap: 0.45rem; }
+.insights li { font-size: 0.88rem; line-height: 1.42; padding: 0.45rem 0.55rem; border-radius: 6px; background: var(--panel); display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; }
+.tag { font-family: var(--font-display); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.15rem 0.35rem; border-radius: 3px; color: #fff; white-space: nowrap; margin-top: 0.12rem; }
+.tag.plus { background: var(--good); } .tag.minus { background: var(--bad); } .tag.trade { background: var(--warn); }
+:root:not([data-theme="light"]) .tag.trade { color: #1d1a10; }
+
+/* knobs */
+.knobs { max-width: 1400px; margin: 1.4rem auto 0; display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .knobs { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.group { background: var(--panel); border-radius: 10px; padding: 0.9rem 1rem 1rem; display: grid; gap: 0.85rem; align-content: start; min-width: 0; }
+.group h2 { font-size: 1.05rem; font-weight: 750; font-stretch: 112%; }
+.group .gsub { font-size: 0.85rem; color: var(--muted); margin-top: -0.55rem; }
+.knob label.name { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; font-family: var(--font-display); font-weight: 650; font-size: 0.88rem; }
+.knob .val { font-family: var(--font-mono); font-weight: 600; color: var(--accent-ink); }
+.knob .why { font-size: 0.82rem; color: var(--muted); margin: 0.15rem 0 0; }
+.reset-tag { font-family: var(--font-display); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0.05rem 0.3rem; margin-left: 0.3rem; }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0.25rem 0 0; }
+.choices { display: grid; gap: 0.4rem; }
+.choice { position: relative; }
+.choice input { position: absolute; opacity: 0; pointer-events: none; }
+.choice label { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 0.5rem 0.65rem; cursor: pointer; }
+.choice label b { font-family: var(--font-display); font-size: 0.9rem; }
+.choice label .one { display: block; font-size: 0.8rem; color: var(--muted); }
+.choice input:checked + label { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.proscons { display: grid; gap: 0.3rem; font-size: 0.84rem; line-height: 1.4; background: var(--card); border-radius: 7px; padding: 0.55rem 0.65rem; }
+.proscons div { display: grid; grid-template-columns: 1.1rem 1fr; gap: 0.25rem; }
+.proscons .p::before { content: "+"; color: var(--good); font-weight: 800; font-family: var(--font-mono); }
+.proscons .m::before { content: "−"; color: var(--bad); font-weight: 800; font-family: var(--font-mono); }
+
+/* compare */
+.compare { max-width: 1400px; margin: 1.4rem auto 0; background: var(--panel); border-radius: 10px; padding: 0.9rem 1rem; }
+.compare-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; justify-content: space-between; }
+.compare-head h2 { font-size: 1.05rem; font-weight: 750; font-stretch: 112%; }
+.tbl { overflow-x: auto; margin-top: 0.6rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+th, td { padding: 0.38rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { font-family: var(--font-display); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td.best { color: var(--good); font-weight: 700; }
+.empty { color: var(--muted); font-size: 0.9rem; padding: 0.6rem 0; }
+.about { max-width: 1400px; margin: 1.4rem auto 0; font-size: 0.88rem; color: var(--muted); display: grid; gap: 0.4rem; }
+.about p { margin: 0; max-width: 95ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="brand"><h1>fleetsim <b>Live</b></h1><span class="sub">a fulfillment fleet you can steer</span></div>
+  <div class="run">
+    <span class="clock" id="clock" aria-live="off">00:00:00</span>
+    <button type="button" class="primary" id="play">Pause</button>
+    <button type="button" id="step">Step 1 s</button>
+    <label class="speed" for="speed">Speed <input type="range" id="speed" min="0" max="6" step="1" value="3" style="width:110px"><span class="mono" id="speed-val">10×</span></label>
+    <button type="button" id="reset">Restart floor</button>
+  </div>
+</div>
+
+<div class="app">
+  <div class="viewport" id="viewport">
+    <canvas id="c3d" aria-label="3D view of the warehouse floor with robots"></canvas>
+    <canvas id="c2d" aria-label="Top-down view of the warehouse floor with robots" hidden></canvas>
+    <div class="hint" id="hint">drag to orbit · scroll to zoom</div>
+    <div class="views" role="group" aria-label="Camera">
+      <button type="button" id="v-iso" aria-pressed="true">3D</button>
+      <button type="button" id="v-top" aria-pressed="false">Top</button>
+      <button type="button" id="v-2d" aria-pressed="false">2D</button>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--accent)"></i>to pod</span>
+      <span><i class="sw" style="background:var(--accent-ink)"></i>carrying pod</span>
+      <span><i class="sw" style="background:var(--station)"></i>picking at station</span>
+      <span><i class="sw" style="background:var(--home)"></i>idle / going home</span>
+      <span><i class="sw" style="background:var(--bad)"></i>collision</span>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="kpis" id="kpis"></div>
+    <div class="panel trend">
+      <h3>Last 60 min <span class="eyebrow" id="window-note">rolling 10-min window</span></h3>
+      <div class="trend-key"><span><i style="background:var(--accent)"></i>done / h</span><span><i style="background:var(--muted)"></i>offered / h</span><span><i style="background:var(--blue)"></i>backlog (right axis)</span></div>
+      <canvas id="trend" aria-label="Throughput and backlog over the last hour"></canvas>
+    </div>
+    <div class="panel">
+      <h3>What the fleet is telling you</h3>
+      <ul class="insights" id="insights"><li><span class="tag trade">Warming up</span><span>Metrics fill in over the first simulated minutes.</span></li></ul>
+    </div>
+  </aside>
+</div>
+
+<section class="knobs" aria-label="Configuration">
+  <div class="group">
+    <h2>Fleet</h2>
+    <p class="gsub">How many drive units, and how they avoid each other.</p>
+    <div class="knob">
+      <label class="name" for="k-n"><span>Robots <span class="reset-tag">restarts</span></span><span class="val" id="k-n-val">40</span></label>
+      <input type="range" id="k-n" min="5" max="200" step="5" value="40">
+      <p class="why">More robots add capacity until aisles and stations jam. Watch travel-wait climb.</p>
+    </div>
+    <div class="knob">
+      <span class="name eyebrow" style="display:block;margin-bottom:0.35rem">Path planner <span class="reset-tag">restarts</span></span>
+      <div class="choices" role="radiogroup" aria-label="Path planner">
+        <div class="choice"><input type="radio" name="planner" id="p-pp" value="pp" checked><label for="p-pp"><b>Prioritized space-time A*</b><span class="one">Books (cell, second) slots; later robots route around earlier ones.</span></label></div>
+        <div class="choice"><input type="radio" name="planner" id="p-naive" value="naive"><label for="p-naive"><b>Shortest path, ignore others</b><span class="one">Each robot drives its own shortest route.</span></label></div>
+      </div>
+    </div>
+    <div class="proscons" id="pc-planner"></div>
+  </div>
+
+  <div class="group">
+    <h2>Demand</h2>
+    <p class="gsub">Orders arrive at random (Poisson). Changes apply live.</p>
+    <div class="knob">
+      <label class="name" for="k-load"><span>Offered load ρ</span><span class="val" id="k-load-val">0.90</span></label>
+      <input type="range" id="k-load" min="0.3" max="1.6" step="0.05" value="0.9">
+      <p class="why">Work arriving ÷ what the fleet can do without congestion. Above 1 the queue grows without limit. <span class="mono" id="k-rate">–</span></p>
+    </div>
+    <div class="knob">
+      <label class="name" for="k-pick"><span>Pick time at station</span><span class="val" id="k-pick-val">10 s</span></label>
+      <input type="range" id="k-pick" min="2" max="40" step="1" value="10">
+      <p class="why">How long a worker needs per pod. Long picks turn stations into the bottleneck.</p>
+    </div>
+    <div class="knob">
+      <label class="name" for="k-st"><span>Open pick stations</span><span class="val" id="k-st-val">19</span></label>
+      <input type="range" id="k-st" min="1" max="19" step="1" value="19">
+      <p class="why">Close stations to see queues form at the wall. New orders only go to open stations.</p>
+    </div>
+  </div>
+
+  <div class="group">
+    <h2>Dispatch</h2>
+    <p class="gsub">Which free robot takes which waiting order. Changes apply live.</p>
+    <div class="choices" role="radiogroup" aria-label="Dispatch policy">
+      <div class="choice"><input type="radio" name="alloc" id="a-fifo" value="fifo" checked><label for="a-fifo"><b>Greedy, first come first served</b><span class="one">Oldest order takes the nearest free robot, every second.</span></label></div>
+      <div class="choice"><input type="radio" name="alloc" id="a-near" value="near"><label for="a-near"><b>Greedy, nearest pair first</b><span class="one">Repeatedly match the closest robot–order pair.</span></label></div>
+      <div class="choice"><input type="radio" name="alloc" id="a-hung" value="hung"><label for="a-hung"><b>Hungarian, every k seconds</b><span class="one">Minimum total travel for the whole batch (Kuhn, 1955).</span></label></div>
+    </div>
+    <div class="knob" id="k-k-wrap">
+      <label class="name" for="k-k"><span>Re-solve period k</span><span class="val" id="k-k-val">5 s</span></label>
+      <input type="range" id="k-k" min="1" max="30" step="1" value="5">
+      <p class="why">Bigger batches give the optimiser more choice but make every order wait for the next solve.</p>
+    </div>
+    <div class="proscons" id="pc-alloc"></div>
+  </div>
+</section>
+
+<section class="compare" aria-label="Pinned runs">
+  <div class="compare-head">
+    <h2>Compare configurations</h2>
+    <div class="run"><button type="button" id="pin">Pin current numbers</button><button type="button" id="clear-pins">Clear</button></div>
+  </div>
+  <div class="tbl"><table id="pins"></table></div>
+  <p class="empty" id="pins-empty">Let a configuration run for 10+ simulated minutes, pin it, change one knob, pin again. Best value per column turns green.</p>
+</section>
+
+<section class="about">
+  <p>Same algorithms as the fleetsim v0.1 Python package, ported to run in your browser: the League of Robot Runners warehouse crop (72 × 99 cells, 2,920 pod slots, 19 stations), Poisson orders, full-errand space-time A* with a reservation table, and three dispatch policies. One tick = one second. KPIs use a rolling 10-minute window of simulated time.</p>
+  <p>Map © The League of Robot Runners, MIT licence. The concepts are explained step by step in the <a href="guide.html">fleetsim Field Guide</a> · <a href="index.html">project home</a> · <a href="https://github.com/zakcination/fleetsim">source on GitHub</a>.</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+"use strict";
+// ======================================================================= map
+const ROWS = ["@@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....", "@@@@...E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E@@@E..E", "@@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....@@@....", "@@@@...............................................................................................", "...................................................................................................", ".E.................................................................................................", "@@@................................................................................................", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", ".E......SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".......S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "........SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", ".E.....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.", "@@@....S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S@@@@@@@@@@@@S", "@@@.....SSSSSSSSSSSS.SSSSSSSSSSSS.@@@@@@@@@@@@.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS.SSSSSSSSSSSS."];
+const H = ROWS.length, W = ROWS[0].length, NC = H * W;
+const CH = (i) => ROWS[(i / W) | 0][i % W];
+const FREE = new Uint8Array(NC);
+for (let i = 0; i < NC; i++) FREE[i] = CH(i) !== "@" ? 1 : 0;
+const NB = [];
+for (let i = 0; i < NC; i++) {
+  const r = (i / W) | 0, c = i % W, out = [];
+  if (FREE[i]) {
+    if (r > 0 && FREE[i - W]) out.push(i - W);
+    if (r < H - 1 && FREE[i + W]) out.push(i + W);
+    if (c > 0 && FREE[i - 1]) out.push(i - 1);
+    if (c < W - 1 && FREE[i + 1]) out.push(i + 1);
+  }
+  NB.push(out);
+}
+const FREE_CELLS = []; for (let i = 0; i < NC; i++) if (FREE[i]) FREE_CELLS.push(i);
+const PODS = FREE_CELLS.filter((i) => CH(i) === "S");
+const EMIT = FREE_CELLS.filter((i) => CH(i) === "E");
+const minCol = Math.min(...EMIT.map((e) => e % W));
+const STATIONS = EMIT.filter((e) => e % W === minCol).sort((a, b) => a - b);
+const UNR = 1 << 30;
+
+// ======================================================================= rng
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+// ======================================================================= BFS
+function bfsRaw(src, blocked) {
+  const d = new Int32Array(NC).fill(UNR); d[src] = 0;
+  const q = new Int32Array(NC); let h = 0, tl = 0; q[tl++] = src;
+  while (h < tl) { const u = q[h++], du = d[u] + 1; const nb = NB[u]; for (let k = 0; k < nb.length; k++) { const v = nb[k]; if (d[v] === UNR && !(blocked && blocked[v])) { d[v] = du; q[tl++] = v; } } }
+  return d;
+}
+const distCache = new Map();
+function distTo(g) {
+  let d = distCache.get(g);
+  if (d) { distCache.delete(g); distCache.set(g, d); return d; }
+  d = bfsRaw(g, null); distCache.set(g, d);
+  if (distCache.size > 1500) distCache.delete(distCache.keys().next().value);
+  return d;
+}
+function shortestPath(a, b) {
+  const d = distTo(b); if (d[a] >= UNR) return null;
+  const p = [a]; let cur = a;
+  while (cur !== b) { const nb = NB[cur]; for (let k = 0; k < nb.length; k++) if (d[nb[k]] === d[cur] - 1) { cur = nb[k]; break; } p.push(cur); }
+  return p;
+}
+
+// ======================================================================= parking (same rule as grid.choose_parking)
+function chooseParking(n) {
+  const stationSet = new Set(STATIONS), near = new Set();
+  STATIONS.forEach((s) => NB[s].forEach((v) => near.add(v)));
+  const c0 = FREE_CELLS.filter((i) => CH(i) === "." && !near.has(i) && !stationSet.has(i) && NB[i].length >= 3);
+  const cands = c0.filter((_, k) => k % 2 === 0).concat(c0.filter((_, k) => k % 2 === 1));
+  const blocked = new Uint8Array(NC), chosen = []; const probe = STATIONS[0]; const nFree = FREE_CELLS.length;
+  for (const c of cands) {
+    if (chosen.length === n) break;
+    if (c === probe || NB[c].some((v) => blocked[v])) continue;
+    blocked[c] = 1;
+    const d = bfsRaw(probe, blocked); let reach = 0; for (let i = 0; i < NC; i++) if (d[i] < UNR) reach++;
+    if (reach === nFree - chosen.length - 1) chosen.push(c); else blocked[c] = 0;
+  }
+  return chosen;
+}
+
+// ======================================================================= reservation table
+const K = 8192; // > NC
+class RT {
+  constructor() { this.v = new Map(); this.e = new Map(); this.park = new Map(); this.last = new Map(); this.owned = new Map(); }
+  reserve(a, t0, path) {
+    let prev = -1;
+    for (let k = 0; k < path.length; k++) {
+      const c = path[k], t = t0 + k;
+      this.v.set(t * K + c, a);
+      if (prev >= 0 && prev !== c) this.e.set(((t - 1) * K + prev) * K + c, a);
+      let m = this.last.get(c); if (!m) { m = new Map(); this.last.set(c, m); } m.set(a, t);
+      prev = c;
+    }
+    this.park.set(path[path.length - 1], { a, from: t0 + path.length - 1 });
+    this.owned.set(a, { t0, path });
+  }
+  release(a) {
+    const o = this.owned.get(a); if (!o) return null; this.owned.delete(a);
+    let prev = -1;
+    for (let k = 0; k < o.path.length; k++) {
+      const c = o.path[k], t = o.t0 + k, vk = t * K + c;
+      if (this.v.get(vk) === a) this.v.delete(vk);
+      if (prev >= 0 && prev !== c) { const ek = ((t - 1) * K + prev) * K + c; if (this.e.get(ek) === a) this.e.delete(ek); }
+      const m = this.last.get(c); if (m) { m.delete(a); if (!m.size) this.last.delete(c); }
+      prev = c;
+    }
+    const end = o.path[o.path.length - 1], p = this.park.get(end);
+    if (p && p.a === a) this.park.delete(end);
+    return o;
+  }
+  free(c, t, a) {
+    const o = this.v.get(t * K + c); if (o !== undefined && o !== a) return false;
+    const p = this.park.get(c); return !p || p.a === a || t < p.from;
+  }
+  move(x, y, t, a) { const o = this.e.get((t * K + y) * K + x); return o === undefined || o === a; }
+  lastUse(c, a) {
+    const p = this.park.get(c); if (p && p.a !== a) return Infinity;
+    const m = this.last.get(c); if (!m) return -1;
+    let b = -1; m.forEach((t, who) => { if (who !== a && t > b) b = t; }); return b;
+  }
+  prune(now) {
+    for (const k of this.v.keys()) if (Math.floor(k / K) < now) this.v.delete(k);
+    for (const k of this.e.keys()) if (Math.floor(k / (K * K)) < now) this.e.delete(k);
+  }
+}
+
+// ======================================================================= space-time A*
+class Heap {
+  constructor() { this.a = []; }
+  get size() { return this.a.length; }
+  less(x, y) { return x[0] < y[0] || (x[0] === y[0] && (x[1] < y[1] || (x[1] === y[1] && x[2] < y[2]))); }
+  push(x) { const a = this.a; a.push(x); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (!this.less(a[i], a[p])) break; [a[i], a[p]] = [a[p], a[i]]; i = p; } }
+  pop() { const a = this.a, top = a[0], last = a.pop(); if (a.length) { a[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < a.length && this.less(a[l], a[m])) m = l; if (r < a.length && this.less(a[r], a[m])) m = r; if (m === i) break; [a[i], a[m]] = [a[m], a[i]]; i = m; } } return top; }
+}
+const stats = { exp: 0 };
+function stAstar(rt, agent, start, t0, goal, dwell, final) {
+  const dist = distTo(goal); if (dist[start] >= UNR) return null;
+  const base = dist[start];
+  let tStar;
+  if (final) { const last = rt.lastUse(goal, agent); if (last === Infinity) return null; tStar = Math.max(t0 + base, last + 1); }
+  else {
+    tStar = t0 + base; const lim = t0 + 4 * base + 400;
+    const ok = (t) => { for (let k = 0; k <= dwell; k++) if (!rt.free(goal, t + k, agent)) return false; return true; };
+    while (tStar <= lim && !ok(tStar)) tStar++;
+    if (tStar > lim) return null;
+  }
+  const maxT = tStar + 2 * base + 200;
+  const goalOk = (t) => { if (t < tStar) return false; if (final) return true; for (let k = 1; k <= dwell; k++) if (!rt.free(goal, t + k, agent)) return false; return true; };
+  const open = new Heap(); const h0 = Math.max(base, tStar - t0);
+  open.push([h0, h0, 0, start, t0]);
+  const parent = new Map(); parent.set(t0 * K + start, -1);
+  let cnt = 0, exp = 0;
+  while (open.size) {
+    const [, , , cell, t] = open.pop();
+    if (cell === goal && goalOk(t)) {
+      const path = []; let key = t * K + cell;
+      while (key !== -1) { path.push(key % K); key = parent.get(key); }
+      stats.exp += exp; return path.reverse();
+    }
+    if (++exp > 60000) break;
+    if (t >= maxT) continue;
+    const nt = t + 1, nb = NB[cell];
+    for (let q = -1; q < nb.length; q++) {
+      const nxt = q < 0 ? cell : nb[q], key = nt * K + nxt;
+      if (parent.has(key)) continue;
+      if (!rt.free(nxt, nt, agent)) continue;
+      if (nxt !== cell && !rt.move(cell, nxt, t, agent)) continue;
+      parent.set(key, t * K + cell);
+      const h = Math.max(dist[nxt], tStar - nt);
+      open.push([nt - t0 + h, h, ++cnt, nxt, nt]);
+    }
+  }
+  stats.exp += exp; return null;
+}
+
+// ======================================================================= states
+const IDLE = 0, TO_POD = 1, LIFT = 2, TO_STATION = 3, SERVICE = 4, RETURN = 5, DROP = 6, TO_HOME = 7;
+const LIFT_T = 2, DROP_T = 2;
+function stateArray(n, arr, svc) {
+  const [aP, aS, aR, aH] = arr, s = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    s[i] = i < aP ? TO_POD : i < aP + LIFT_T ? LIFT : i < aS ? TO_STATION : i < aS + svc ? SERVICE : i < aR ? RETURN : i < aR + DROP_T ? DROP : i < aH ? TO_HOME : IDLE;
+  }
+  return s;
+}
+
+// ======================================================================= Hungarian (rows <= cols), O(n^2 m)
+function hungarian(C) {
+  const n = C.length, m = C[0].length, INF = 1e18;
+  const u = new Float64Array(n + 1), v = new Float64Array(m + 1), p = new Int32Array(m + 1), way = new Int32Array(m + 1);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i; let j0 = 0; const minv = new Float64Array(m + 1).fill(INF), used = new Uint8Array(m + 1);
+    do {
+      used[j0] = 1; const i0 = p[j0]; let delta = INF, j1 = 0;
+      for (let j = 1; j <= m; j++) if (!used[j]) {
+        const cur = C[i0 - 1][j - 1] - u[i0] - v[j];
+        if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+        if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+      }
+      for (let j = 0; j <= m; j++) { if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta; }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+  }
+  const res = []; for (let j = 1; j <= m; j++) if (p[j]) res.push([p[j] - 1, j - 1]);
+  return res;
+}
+
+// ======================================================================= simulation
+const WIN = 600; // rolling KPI window (s)
+class Sim {
+  constructor(cfg) { this.cfg = cfg; this.reset(); }
+  reset() {
+    const c = this.cfg;
+    this.t = 0; this.rng = mulberry32(12345 + c.n);
+    this.homes = chooseParking(c.n);
+    this.rt = new RT();
+    this.robots = this.homes.map((h, i) => ({ id: i, home: h, t0: 0, path: [h], st: new Uint8Array([IDLE]), order: null }));
+    this.robots.forEach((r) => this.rt.reserve(r.id, 0, r.path));
+    this.pending = []; this.nextId = 0; this.done = new Map();
+    this.ring = []; this.sum = this.zero(); this.series = []; this.collisions = 0; this.hit = new Set();
+    this.totalDone = 0; this.planner = c.planner;
+    this.refreshDemand();
+  }
+  zero() { return { done: 0, busy: 0, travel: 0, waiting: 0, svc: 0, ms: 0, calls: 0, fails: 0, conf: 0, wsum: 0, wn: 0, dsum: 0, dn: 0, ticks: 0 }; }
+  refreshDemand() {
+    const c = this.cfg, k = c.stations, S = STATIONS.length;
+    this.open = k >= S ? STATIONS.slice() : Array.from({ length: k }, (_, i) => STATIONS[Math.round(k === 1 ? (S - 1) / 2 : i * (S - 1) / (k - 1))]);
+    const r = mulberry32(99); let tot = 0;
+    for (let s = 0; s < 300; s++) {
+      const pod = PODS[(r() * PODS.length) | 0], st = this.open[(r() * this.open.length) | 0], home = this.homes[(r() * this.homes.length) | 0];
+      tot += distTo(pod)[home] + LIFT_T + 2 * distTo(st)[pod] + c.service + DROP_T;
+    }
+    this.cycle = tot / 300; this.rate = c.load * c.n / this.cycle;
+  }
+  pos(r, t) { const k = t - r.t0; return k < r.path.length ? r.path[k] : r.path[r.path.length - 1]; }
+  state(r, t) { const k = t - r.t0; return k < r.st.length ? r.st[k] : IDLE; }
+  poisson(l) { const L = Math.exp(-l); let k = 0, p = 1; do { k++; p *= this.rng(); } while (p > L); return k - 1; }
+
+  allocate(free) {
+    const c = this.cfg, P = this.pending;
+    if (!free.length || !P.length) return [];
+    if (c.alloc === "fifo") {
+      const used = new Uint8Array(free.length), out = [];
+      for (let j = 0; j < P.length && out.length < free.length; j++) {
+        const d = distTo(P[j].pod); let best = -1, bd = UNR;
+        for (let i = 0; i < free.length; i++) if (!used[i] && d[free[i][1]] < bd) { bd = d[free[i][1]]; best = i; }
+        if (best < 0) break; used[best] = 1; out.push([free[best][0], P[j]]);
+      }
+      return out;
+    }
+    if (c.alloc === "hung" && this.t % c.k !== 0) return [];
+    const win = P.slice(0, Math.max(20, 2 * free.length));
+    const C = free.map(([, pos]) => win.map((o) => { const d = distTo(o.pod)[pos]; return d >= UNR ? 1e9 : d; }));
+    if (c.alloc === "near") {
+      const cells = [];
+      C.forEach((row, i) => row.forEach((v, j) => cells.push([v, i, j])));
+      cells.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
+      const ur = new Uint8Array(free.length), uc = new Uint8Array(win.length), out = [];
+      for (const [, i, j] of cells) { if (ur[i] || uc[j]) continue; ur[i] = 1; uc[j] = 1; out.push([free[i][0], win[j]]); if (out.length === Math.min(free.length, win.length)) break; }
+      return out;
+    }
+    // Hungarian
+    if (free.length <= win.length) return hungarian(C).map(([i, j]) => [free[i][0], win[j]]);
+    const CT = win.map((_, j) => C.map((row) => row[j]));
+    return hungarian(CT).map(([j, i]) => [free[i][0], win[j]]);
+  }
+
+  planNaive(start, t, o, home) {
+    const c = this.cfg, path = [start], arr = [];
+    for (const [g, d] of [[o.pod, LIFT_T], [o.station, c.service], [o.pod, DROP_T]]) {
+      const p = shortestPath(path[path.length - 1], g); for (let k = 1; k < p.length; k++) path.push(p[k]);
+      arr.push(path.length - 1); for (let k = 0; k < d; k++) path.push(g);
+    }
+    const p = shortestPath(path[path.length - 1], home); for (let k = 1; k < p.length; k++) path.push(p[k]);
+    arr.push(path.length - 1); return { path, arr };
+  }
+  planPP(id, start, t, o, home) {
+    const c = this.cfg, path = [start], arr = []; let cur = start, tt = t;
+    for (const [g, d] of [[o.pod, LIFT_T], [o.station, c.service], [o.pod, DROP_T]]) {
+      const seg = stAstar(this.rt, id, cur, tt, g, d, false); if (!seg) return null;
+      for (let k = 1; k < seg.length; k++) path.push(seg[k]);
+      arr.push(path.length - 1); for (let k = 0; k < d; k++) path.push(g);
+      cur = g; tt = t + path.length - 1;
+    }
+    const seg = stAstar(this.rt, id, cur, tt, home, 0, true); if (!seg) return null;
+    for (let k = 1; k < seg.length; k++) path.push(seg[k]);
+    arr.push(path.length - 1); return { path, arr };
+  }
+
+  tick() {
+    const c = this.cfg, t = this.t, rec = this.zero(); rec.ticks = 1;
+    // 1. arrivals
+    const k = this.poisson(this.rate);
+    for (let q = 0; q < k; q++) this.pending.push({ id: this.nextId++, pod: PODS[(this.rng() * PODS.length) | 0], station: this.open[(this.rng() * this.open.length) | 0], created: t });
+    // 2. dispatch + 3. plan
+    const free = []; for (const r of this.robots) { const s = this.state(r, t); if (s === IDLE || s === TO_HOME) free.push([r.id, this.pos(r, t)]); }
+    const pairs = this.allocate(free); const taken = new Set();
+    for (const [rid, o] of pairs) {
+      const r = this.robots[rid], start = this.pos(r, t), t0 = performance.now();
+      let res;
+      if (this.planner === "naive") res = this.planNaive(start, t, o, r.home);
+      else {
+        const old = this.rt.release(rid);
+        res = this.planPP(rid, start, t, o, r.home);
+        if (res) this.rt.reserve(rid, t, res.path); else this.rt.reserve(rid, old.t0, old.path);
+      }
+      rec.ms += performance.now() - t0; rec.calls++;
+      if (!res) { rec.fails++; continue; }
+      r.t0 = t; r.path = res.path; r.st = stateArray(res.path.length, res.arr, c.service); r.order = o;
+      const [aP, aS, aR] = res.arr, comp = t + aR + DROP_T;
+      const ff = distTo(o.pod)[start] + LIFT_T + 2 * distTo(o.station)[o.pod] + c.service + DROP_T;
+      const list = this.done.get(comp) || []; list.push(comp - t - ff); this.done.set(comp, list);
+      rec.wsum += t - o.created; rec.wn++; taken.add(o.id);
+    }
+    if (taken.size) this.pending = this.pending.filter((o) => !taken.has(o.id));
+    // 4. observe this tick
+    const seen = new Map(); this.hit = new Set();
+    for (const r of this.robots) {
+      const s = this.state(r, t), p = this.pos(r, t), np = this.pos(r, t + 1);
+      if (s >= 1 && s <= 6) rec.busy++;
+      if (s === TO_POD || s === TO_STATION || s === RETURN) { rec.travel++; if (np === p) rec.waiting++; }
+      if (s === SERVICE) rec.svc++;
+      if (seen.has(p)) { rec.conf++; this.hit.add(r.id); this.hit.add(seen.get(p)); } else seen.set(p, r.id);
+    }
+    if (this.planner === "naive" && t > 0) { // swaps between t-1 and t
+      const prev = new Map(); for (const r of this.robots) { const a = this.pos(r, t - 1), b = this.pos(r, t); if (a !== b) prev.set(a + "," + b, r.id); }
+      prev.forEach((id, key) => { const [a, b] = key.split(","); if (a < b && prev.has(b + "," + a)) { rec.conf++; this.hit.add(id); this.hit.add(prev.get(b + "," + a)); } });
+    }
+    this.collisions += rec.conf;
+    const fin = this.done.get(t); if (fin) { rec.done = fin.length; rec.dsum = fin.reduce((s, x) => s + x, 0); rec.dn = fin.length; this.done.delete(t); this.totalDone += fin.length; }
+    // rolling window
+    this.ring.push(rec); for (const key in rec) this.sum[key] += rec[key];
+    if (this.ring.length > WIN) { const old = this.ring.shift(); for (const key in old) this.sum[key] -= old[key]; }
+    if (t % 30 === 0) { this.series.push({ t, thr: this.sum.done * 3600 / Math.max(1, this.sum.ticks), off: this.rate * 3600, backlog: this.pending.length }); if (this.series.length > 121) this.series.shift(); }
+    if (t % 300 === 0 && t > 0) this.rt.prune(t - 1);
+    this.t++;
+  }
+  kpis() {
+    const s = this.sum, n = this.cfg.n, T = Math.max(1, s.ticks);
+    const oldest = this.pending.length ? this.t - this.pending[0].created : 0;
+    return {
+      thr: s.done * 3600 / T, off: this.rate * 3600, util: s.busy / (n * T), tw: s.travel ? s.waiting / s.travel : 0,
+      wait: s.wn ? s.wsum / s.wn : 0, oldest, backlog: this.pending.length, ms: s.calls ? s.ms / s.calls : 0,
+      fail: s.calls ? s.fails / s.calls : 0, coll: this.collisions, collWin: s.conf, stBusy: s.svc / (this.open.length * T),
+      delay: s.dn ? s.dsum / s.dn : 0, ticks: s.ticks,
+    };
+  }
+}
+
+// ======================================================================= UI state
+const cfg = { n: 40, load: 0.9, service: 10, stations: 19, alloc: "fifo", k: 5, planner: "pp" };
+let sim = new Sim(cfg);
+const SPEEDS = [1, 2, 5, 10, 20, 40, 80];
+let speedIdx = 3, playing = !window.matchMedia("(prefers-reduced-motion: reduce)").matches, acc = 0;
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+function warmStart() { const t0 = performance.now(); while (sim.t < WIN + 60 && performance.now() - t0 < 2000) sim.tick(); }
+warmStart();
+
+// ======================================================================= pros / cons copy
+const PC = {
+  pp: { p: ["Collision-free by construction; an independent check of every tick confirms it.", "Fast: one search per errand, a few ms even with 100+ robots."], m: ["Incomplete: a plan can fail although a solution exists (watch “plan fails”).", "Fixed priority: robots planned later take the detours and waits."] },
+  naive: { p: ["Each robot takes its individually shortest route.", "Trivial to compute: no coordination at all."], m: ["Robots collide: two on one cell, or swapping through each other.", "Unusable on a real floor. This is why fleets need MAPF."] },
+  fifo: { p: ["Fair: the oldest order is served first, so no order starves.", "No batching delay: matches every second."], m: ["Myopic: may send a robot across the floor while a closer pairing exists.", "With a backlog, more empty driving means lower throughput."] },
+  near: { p: ["Captures most travel savings with a simple sort.", "No batching delay."], m: ["Ignores order age: far-away old orders can wait a long time.", "Locally greedy: one early pick can force bad later ones."] },
+  hung: { p: ["Minimum total travel for each batch: provably optimal assignment.", "Shines under a backlog, when there is real choice."], m: ["Batching: every order waits up to k s for the next solve.", "Also favours near orders, so tail waits can grow; cost grows ~n³ with batch size."] },
+};
+function renderPC() {
+  const f = (o) => o.p.map((x) => `<div class="p">${x}</div>`).join("") + o.m.map((x) => `<div class="m">${x}</div>`).join("");
+  $("pc-planner").innerHTML = f(PC[cfg.planner]); $("pc-alloc").innerHTML = f(PC[cfg.alloc]);
+  $("k-k-wrap").hidden = cfg.alloc !== "hung";
+}
+
+// ======================================================================= KPI + insights
+const fmtS = (s) => s < 120 ? Math.round(s) + "" : (s / 60).toFixed(1);
+const unitS = (s) => s < 120 ? "s" : "min";
+function renderKpis() {
+  const k = sim.kpis(), warm = k.ticks < 300;
+  const tiles = [
+    ["Throughput", Math.round(k.thr), "tasks / h", k.thr < 0.8 * k.off && k.backlog > cfg.n ? "warn" : ""],
+    ["Offered", Math.round(k.off), "orders / h", ""],
+    ["Utilization", Math.round(k.util * 100), "% busy", k.util > 0.97 ? "warn" : ""],
+    ["Backlog", k.backlog, "orders waiting", k.backlog > 2 * cfg.n ? "bad" : k.backlog > cfg.n / 2 ? "warn" : ""],
+    ["Order wait", fmtS(k.wait), unitS(k.wait) + " to robot", k.wait > 300 ? "bad" : k.wait > 60 ? "warn" : ""],
+    ["Oldest order", fmtS(k.oldest), unitS(k.oldest) + " waiting", k.oldest > 600 ? "bad" : k.oldest > 180 ? "warn" : ""],
+    ["Travel-wait", (k.tw * 100).toFixed(1), "% of travel", k.tw > 0.08 ? "bad" : k.tw > 0.04 ? "warn" : ""],
+    ["Congestion", k.delay.toFixed(1), "s extra / task", k.delay > 30 ? "warn" : ""],
+    ["Stations busy", Math.round(k.stBusy * 100), "% of time", k.stBusy > 0.85 ? "bad" : k.stBusy > 0.7 ? "warn" : ""],
+    ["Planner", k.ms.toFixed(1), "ms / errand", k.ms > 30 ? "warn" : ""],
+    ["Plan fails", (k.fail * 100).toFixed(1), "% retried", k.fail > 0.05 ? "warn" : ""],
+    ["Collisions", k.coll, "since start", k.coll > 0 ? "bad" : "good"],
+  ];
+  $("kpis").innerHTML = tiles.map(([n, v, u, cls]) => `<div class="kpi ${warm && n !== "Collisions" ? "" : cls}"><div class="k">${n}</div><div class="v">${warm && !["Offered", "Collisions", "Backlog"].includes(n) ? "…" : v}</div><div class="u">${u}</div></div>`).join("");
+  return k;
+}
+function insights(k) {
+  const out = [], rho = cfg.load, n = cfg.n;
+  if (k.ticks < 120) return [["trade", "Warming up", "Metrics fill in over the first simulated minutes."]];
+  const ser = sim.series, slope = ser.length > 12 ? (ser[ser.length - 1].backlog - ser[ser.length - 13].backlog) / 6 : 0; // per minute
+  if (cfg.planner === "naive" && k.coll > 0) out.push(["minus", "Collisions", `${k.coll} collisions so far. Shortest paths ignore other robots. Switch to prioritized space-time A* and the count stays at 0.`]);
+  if (rho > 1.02 && slope > 0.3) out.push(["minus", "Unstable queue", `Load ρ = ${rho.toFixed(2)} is above capacity: the backlog grows ~${slope.toFixed(1)} orders/min and will not settle. Add robots or reduce demand.`]);
+  else if (rho > 0.95 && k.backlog > n / 2) out.push(["trade", "Near capacity", `At ρ = ${rho.toFixed(2)} small bursts build queues that drain slowly. Waits rise long before utilization hits 100%.`]);
+  if (k.stBusy > 0.75) out.push(["minus", "Station bottleneck", `Pick stations are busy ${Math.round(k.stBusy * 100)}% of the time. More robots won't help; open stations or shorten picks.`]);
+  if (k.tw > 0.05) out.push(["minus", "Congestion", `Robots spend ${(k.tw * 100).toFixed(1)}% of travel time waiting for others. Aisles are saturated, so extra robots add little.`]);
+  if (cfg.alloc === "hung" && k.backlog > 5) out.push(["plus", "Choice pays off", `${k.backlog} orders waiting gives the Hungarian solver real choice. Compare throughput with first-come-first-served.`]);
+  if (cfg.alloc === "hung" && k.backlog <= 2 && cfg.k >= 5) out.push(["trade", "Batching cost", `Almost no backlog, so the optimiser has nothing to choose from, but every order still waits up to ${cfg.k} s for the next solve.`]);
+  if (cfg.alloc !== "fifo" && k.oldest > Math.max(300, 4 * k.wait)) out.push(["trade", "Fairness", `The oldest order has waited ${fmtS(k.oldest)} ${unitS(k.oldest)}, far above the mean. Travel-minimizing dispatch skips far-away orders.`]);
+  if (cfg.alloc === "fifo" && k.backlog > n) out.push(["trade", "FIFO under backlog", "First-come-first-served is fair but sends robots far for old orders. Try nearest-pair or Hungarian and pin both."]);
+  if (cfg.planner === "pp" && k.fail > 0.02) out.push(["trade", "Incomplete planner", `${(k.fail * 100).toFixed(1)}% of errand plans failed and were retried: fixed priorities sometimes leave no route.`]);
+  if (k.util < 0.45 && k.backlog === 0) out.push(["trade", "Oversized fleet", `Robots are busy only ${Math.round(k.util * 100)}% of the time. Fewer robots would serve this demand.`]);
+  if (cfg.planner === "pp" && k.coll === 0 && out.length < 3) out.push(["plus", "Zero collisions", "Every robot holds a conflict-free booking in the reservation table; a failed search keeps the old, still-valid plan."]);
+  if (!out.length) out.push(["plus", "Healthy flow", `Throughput ${Math.round(k.thr)} tasks/h tracks demand, with short waits and little congestion. Push load or robots to find the limit.`]);
+  return out.slice(0, 5);
+}
+function renderInsights(k) {
+  $("insights").innerHTML = insights(k).map(([cls, tag, txt]) => `<li><span class="tag ${cls}">${tag}</span><span>${txt}</span></li>`).join("");
+}
+
+// ======================================================================= trend chart
+function drawTrend() {
+  const cv = $("trend"), dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 360, h = 120;
+  cv.width = w * dpr; cv.height = h * dpr; const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const s = sim.series; if (s.length < 2) return;
+  const L = 34, R = w - 30, T = 6, B = h - 16;
+  const ymax = Math.max(50, ...s.map((p) => Math.max(p.thr, p.off))) * 1.1, bmax = Math.max(10, ...s.map((p) => p.backlog)) * 1.15;
+  const x = (i) => L + (i / 120) * (R - L) + (120 - (s.length - 1)) / 120 * (R - L);
+  g.font = `10px ${css("--font-mono")}`; g.fillStyle = css("--muted"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  for (let q = 0; q <= 2; q++) { const yy = B - q / 2 * (B - T); g.beginPath(); g.moveTo(L, yy); g.lineTo(R, yy); g.stroke(); g.textAlign = "right"; g.fillText(Math.round(q / 2 * ymax), L - 4, yy + 3); g.textAlign = "left"; g.fillText(Math.round(q / 2 * bmax), R + 4, yy + 3); }
+  g.textAlign = "left"; g.fillText("−60 min", L, h - 3); g.textAlign = "right"; g.fillText("now", R, h - 3);
+  const line = (key, max, color, dash, width) => { g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash); g.beginPath(); s.forEach((p, i) => { const yy = B - (p[key] / max) * (B - T); i ? g.lineTo(x(i), yy) : g.moveTo(x(i), yy); }); g.stroke(); g.setLineDash([]); };
+  line("off", ymax, css("--muted"), [4, 3], 1.4); line("backlog", bmax, css("--blue"), [], 1.4); line("thr", ymax, css("--accent"), [], 2.2);
+}
+
+// ======================================================================= renderers
+const colorFor = (s, hit) => hit ? "--bad" : s === SERVICE ? "--station" : (s === TO_STATION || s === RETURN || s === LIFT || s === DROP) ? "--accent-ink" : s === TO_POD ? "--accent" : "--home";
+let view = "iso", three = null;
+
+function init3D() {
+  if (!window.THREE) return null;
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: $("c3d"), antialias: true }); } catch (e) { return null; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 600);
+  const controls = THREE.OrbitControls ? new THREE.OrbitControls(camera, renderer.domElement) : null;
+  if (controls) { controls.target.set(W / 2, 0, H / 2); controls.maxPolarAngle = Math.PI * 0.49; controls.enableDamping = true; }
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445044, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-40, 90, 30); scene.add(sun);
+  // floor
+  const tex = document.createElement("canvas"); tex.width = W * 8; tex.height = H * 8;
+  const floorTex = new THREE.CanvasTexture(tex); floorTex.magFilter = THREE.NearestFilter; floorTex.minFilter = THREE.LinearFilter;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshLambertMaterial({ map: floorTex }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(W / 2, 0, H / 2); scene.add(floor);
+  // shelves
+  const shelfCells = []; for (let i = 0; i < NC; i++) if (!FREE[i]) shelfCells.push(i);
+  const shelfMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+  const shelves = new THREE.InstancedMesh(new THREE.BoxGeometry(0.94, 0.55, 0.94), shelfMat, shelfCells.length);
+  const dummy = new THREE.Object3D();
+  shelfCells.forEach((c, k) => { dummy.position.set(c % W + 0.5, 0.275, ((c / W) | 0) + 0.5); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); shelves.setMatrixAt(k, dummy.matrix); });
+  scene.add(shelves);
+  // stations: green posts
+  const stMat = new THREE.MeshLambertMaterial({ color: 0x3a9a4c });
+  const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 0.18, 1.8, 10), stMat, STATIONS.length);
+  STATIONS.forEach((c, k) => { dummy.position.set(c % W + 0.15, 0.9, ((c / W) | 0) + 0.5); dummy.updateMatrix(); posts.setMatrixAt(k, dummy.matrix); });
+  scene.add(posts);
+  // robots + pods
+  const MAXR = 200;
+  const robots = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.5, 0.9), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXR);
+  robots.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const pods = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.8, 0.7), new THREE.MeshLambertMaterial({ color: 0x6f93b8 }), MAXR);
+  pods.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < MAXR; i++) robots.setColorAt(i, new THREE.Color(0xffffff));
+  scene.add(robots); scene.add(pods);
+  const t3 = { renderer, scene, camera, controls, tex, floorTex, shelfMat, stMat, robots, pods, dummy, podMat: pods.material };
+  theme3D(t3); setCamera(t3, "iso");
+  return t3;
+}
+function theme3D(t3) {
+  const g = t3.tex.getContext("2d"), s = 8;
+  const cols = { ".": css("--floor"), S: css("--pod"), E: css("--floor"), "@": css("--shelf") };
+  for (let i = 0; i < NC; i++) { g.fillStyle = cols[CH(i)]; g.fillRect((i % W) * s, ((i / W) | 0) * s, s, s); }
+  g.fillStyle = css("--station");
+  for (const st of STATIONS) { const open = sim.open.includes(st); g.globalAlpha = open ? 1 : 0.25; g.fillRect((st % W) * s, ((st / W) | 0) * s, s, s); }
+  g.globalAlpha = 1;
+  g.strokeStyle = css("--line"); g.globalAlpha = 0.35; g.lineWidth = 1;
+  for (let c = 0; c <= W; c++) { g.beginPath(); g.moveTo(c * s, 0); g.lineTo(c * s, H * s); g.stroke(); }
+  for (let r = 0; r <= H; r++) { g.beginPath(); g.moveTo(0, r * s); g.lineTo(W * s, r * s); g.stroke(); }
+  g.globalAlpha = 1; t3.floorTex.needsUpdate = true;
+  t3.scene.background = new THREE.Color(css("--panel"));
+  t3.shelfMat.color.set(css("--shelf") === "#0b0d0c" ? "#303632" : "#5d655f");
+  t3.stMat.color.set(css("--station")); t3.podMat.color.set(css("--podbox"));
+}
+function setCamera(t3, v) {
+  const cam = t3.camera;
+  if (v === "top") { cam.position.set(W / 2, 118, H / 2 + 0.01); }
+  else { cam.position.set(W / 2 - 14, 78, H + 30); }
+  if (t3.controls) { t3.controls.target.set(W / 2, 0, H / 2 - 4); t3.controls.update(); } else cam.lookAt(W / 2, 0, H / 2);
+}
+function resize3D(t3) {
+  const box = $("viewport"), w = box.clientWidth, h = box.clientHeight;
+  t3.renderer.setSize(w, h, false); t3.camera.aspect = w / h; t3.camera.updateProjectionMatrix();
+}
+const colorCache = new Map();
+function threeColor(v) { const k = v + css(v); let c = colorCache.get(k); if (!c) { c = new THREE.Color(css(v)); colorCache.set(k, c); } return c; }
+function draw3D(frac) {
+  const t3 = three, d = t3.dummy, T = sim.t; let n = 0;
+  for (const r of sim.robots) {
+    const a = sim.pos(r, Math.max(0, T - 1)), b = sim.pos(r, T), s = sim.state(r, Math.max(0, T - 1));
+    const ax = a % W + 0.5, az = ((a / W) | 0) + 0.5, bx = b % W + 0.5, bz = ((b / W) | 0) + 0.5;
+    const x = ax + (bx - ax) * frac, z = az + (bz - az) * frac;
+    d.position.set(x, 0.26, z); d.rotation.set(0, a !== b ? Math.atan2(bx - ax, bz - az) : 0, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+    t3.robots.setMatrixAt(n, d.matrix); t3.robots.setColorAt(n, threeColor(colorFor(s, sim.hit.has(r.id))));
+    const carry = s >= LIFT && s <= DROP;
+    const ph = s === LIFT ? 0.55 : s === DROP ? 0.55 : 1;
+    d.position.set(x, 0.52 + 0.8 * ph / 2, z); d.rotation.set(0, 0, 0); d.scale.set(1, carry ? ph : 0.0001, 1); d.updateMatrix();
+    t3.pods.setMatrixAt(n, d.matrix); n++;
+  }
+  t3.robots.count = n; t3.pods.count = n;
+  t3.robots.instanceMatrix.needsUpdate = true; if (t3.robots.instanceColor) t3.robots.instanceColor.needsUpdate = true; t3.pods.instanceMatrix.needsUpdate = true;
+  if (t3.controls) t3.controls.update();
+  t3.renderer.render(t3.scene, t3.camera);
+}
+// 2D fallback / flat view
+let bg2d = null;
+function build2D() {
+  const box = $("viewport"), cv = $("c2d"), dpr = window.devicePixelRatio || 1, w = box.clientWidth, h = box.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const cell = Math.min(w / W, h / H), ox = (w - cell * W) / 2, oy = (h - cell * H) / 2;
+  const off = document.createElement("canvas"); off.width = cv.width; off.height = cv.height;
+  const g = off.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = css("--panel"); g.fillRect(0, 0, w, h);
+  const cols = { ".": css("--floor"), S: css("--pod"), E: css("--floor"), "@": css("--shelf") };
+  for (let i = 0; i < NC; i++) { g.fillStyle = cols[CH(i)]; g.fillRect(ox + (i % W) * cell, oy + ((i / W) | 0) * cell, cell + 0.5, cell + 0.5); }
+  for (const st of STATIONS) { g.globalAlpha = sim.open.includes(st) ? 1 : 0.25; g.fillStyle = css("--station"); g.fillRect(ox + (st % W) * cell, oy + ((st / W) | 0) * cell, cell, cell); }
+  g.globalAlpha = 1;
+  bg2d = { off, cell, ox, oy, dpr, w, h };
+}
+function draw2D(frac) {
+  if (!bg2d) build2D();
+  const cv = $("c2d"), g = cv.getContext("2d"), { off, cell, ox, oy, dpr } = bg2d, T = sim.t;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(off, 0, 0); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const r of sim.robots) {
+    const a = sim.pos(r, Math.max(0, T - 1)), b = sim.pos(r, T), s = sim.state(r, Math.max(0, T - 1));
+    const x = ox + ((a % W) + ((b % W) - (a % W)) * frac + 0.5) * cell, y = oy + (((a / W) | 0) + (((b / W) | 0) - ((a / W) | 0)) * frac + 0.5) * cell;
+    g.beginPath(); g.arc(x, y, Math.max(1.8, cell * 0.45), 0, Math.PI * 2); g.fillStyle = css(colorFor(s, sim.hit.has(r.id))); g.fill();
+    if (s >= LIFT && s <= DROP) { g.fillStyle = css("--podbox"); const q = Math.max(1.2, cell * 0.22); g.fillRect(x - q, y - q, 2 * q, 2 * q); }
+  }
+}
+
+// ======================================================================= main loop
+let last = performance.now(), uiClock = 0;
+function frame(now) {
+  const dt = Math.min(0.25, (now - last) / 1000); last = now;
+  if (playing) {
+    acc += dt * SPEEDS[speedIdx];
+    const t0 = performance.now(); let ran = 0;
+    while (acc >= 1 && performance.now() - t0 < 28) { sim.tick(); acc -= 1; ran++; }
+    if (acc > 3) acc = 1; // can't keep up: drop backlog of ticks instead of freezing
+  }
+  const frac = playing ? Math.min(acc, 0.999) : 0;
+  if (view === "2d" || !three) draw2D(frac); else draw3D(frac);
+  uiClock += dt;
+  if (uiClock > 0.25) { uiClock = 0; const k = renderKpis(); renderInsights(k); drawTrend(); tickClock(); }
+  requestAnimationFrame(frame);
+}
+function tickClock() { const t = sim.t, h = (t / 3600) | 0, m = ((t % 3600) / 60) | 0, s = t % 60; $("clock").textContent = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`; }
+
+// ======================================================================= wiring
+function setView(v) {
+  view = v; ["iso", "top", "2d"].forEach((x) => $("v-" + x).setAttribute("aria-pressed", String(x === v)));
+  const flat = v === "2d" || !three;
+  $("c3d").hidden = flat; $("c2d").hidden = !flat; $("hint").hidden = flat;
+  if (flat) { bg2d = null; } else { setCamera(three, v); resize3D(three); }
+}
+function restart() { sim = new Sim(cfg); warmStart(); bg2d = null; if (three) theme3D(three); renderKpis(); }
+$("play").addEventListener("click", () => { playing = !playing; $("play").textContent = playing ? "Pause" : "Play"; });
+$("step").addEventListener("click", () => { playing = false; $("play").textContent = "Play"; sim.tick(); tickClock(); renderKpis(); });
+$("speed").addEventListener("input", (e) => { speedIdx = +e.target.value; $("speed-val").textContent = SPEEDS[speedIdx] + "×"; });
+$("reset").addEventListener("click", restart);
+["iso", "top", "2d"].forEach((v) => $("v-" + v).addEventListener("click", () => setView(v)));
+const bindRange = (id, fmt, apply) => { const el = $(id); const upd = () => { $(id + "-val").textContent = fmt(+el.value); }; el.addEventListener("input", () => { upd(); apply(+el.value, false); }); el.addEventListener("change", () => apply(+el.value, true)); upd(); };
+bindRange("k-n", (v) => v, (v, done) => { if (done && v !== cfg.n) { cfg.n = v; restart(); } });
+bindRange("k-load", (v) => v.toFixed(2), (v) => { cfg.load = v; sim.cfg = cfg; sim.refreshDemand(); showRate(); });
+bindRange("k-pick", (v) => v + " s", (v) => { cfg.service = v; sim.refreshDemand(); showRate(); });
+bindRange("k-st", (v) => v, (v) => { cfg.stations = v; sim.refreshDemand(); bg2d = null; if (three) theme3D(three); showRate(); });
+bindRange("k-k", (v) => v + " s", (v) => { cfg.k = v; });
+document.querySelectorAll('input[name="alloc"]').forEach((el) => el.addEventListener("change", () => { cfg.alloc = el.value; renderPC(); }));
+document.querySelectorAll('input[name="planner"]').forEach((el) => el.addEventListener("change", () => { cfg.planner = el.value; renderPC(); restart(); }));
+function showRate() { $("k-rate").textContent = `= ${Math.round(sim.rate * 3600)} orders/h for ${cfg.n} robots (errand ≈ ${Math.round(sim.cycle)} s)`; }
+
+// pinned comparisons
+let pins = []; try { pins = JSON.parse(localStorage.getItem("fleetsim-pins") || "[]"); } catch (e) { pins = []; }
+const ALLOC_NAME = { fifo: "Greedy FIFO", near: "Greedy nearest", hung: "Hungarian" };
+function savePins() { try { localStorage.setItem("fleetsim-pins", JSON.stringify(pins)); } catch (e) { /* storage blocked */ } }
+function renderPins() {
+  $("pins-empty").hidden = pins.length > 0;
+  if (!pins.length) { $("pins").innerHTML = ""; return; }
+  const cols = [
+    ["Robots", (p) => p.n], ["Load", (p) => p.load.toFixed(2)], ["Pick", (p) => p.service + " s"], ["Stations", (p) => p.stations],
+    ["Dispatch", (p) => ALLOC_NAME[p.alloc] + (p.alloc === "hung" ? ` k=${p.k}` : "")], ["Planner", (p) => p.planner === "pp" ? "Space-time A*" : "Ignore others"],
+    ["Tasks/h", (p) => Math.round(p.thr), "max", "thr"], ["Util", (p) => Math.round(p.util * 100) + "%"], ["Wait", (p) => Math.round(p.wait) + " s", "min", "wait"],
+    ["Oldest", (p) => Math.round(p.oldest) + " s", "min", "oldest"], ["Backlog", (p) => p.backlog, "min", "backlog"], ["Travel-wait", (p) => (p.tw * 100).toFixed(1) + "%", "min", "tw"],
+    ["Collisions", (p) => p.coll, "min", "coll"], ["Plan ms", (p) => p.ms.toFixed(1)], ["", null],
+  ];
+  const best = {}; cols.forEach(([, , dir, key]) => { if (dir) { const vals = pins.map((p) => p[key]); best[key] = dir === "max" ? Math.max(...vals) : Math.min(...vals); } });
+  let h = "<thead><tr>" + cols.map(([n]) => `<th>${n}</th>`).join("") + "</tr></thead><tbody>";
+  pins.forEach((p, i) => {
+    h += "<tr>" + cols.map(([n, f, dir, key]) => {
+      if (!f) return `<td><button type="button" data-unpin="${i}" aria-label="Remove row">✕</button></td>`;
+      const isNum = !["Dispatch", "Planner"].includes(n);
+      const b = dir && pins.length > 1 && p[key] === best[key] ? " best" : "";
+      return `<td class="${isNum ? "n" : ""}${b}">${f(p)}</td>`;
+    }).join("") + "</tr>";
+  });
+  $("pins").innerHTML = h + "</tbody>";
+  document.querySelectorAll("[data-unpin]").forEach((b) => b.addEventListener("click", () => { pins.splice(+b.dataset.unpin, 1); savePins(); renderPins(); }));
+}
+$("pin").addEventListener("click", () => { const k = sim.kpis(); pins.push({ ...cfg, ...k }); savePins(); renderPins(); });
+$("clear-pins").addEventListener("click", () => { pins = []; savePins(); renderPins(); });
+
+// theme changes
+const onTheme = () => { colorCache.clear(); bg2d = null; if (three) theme3D(three); drawTrend(); };
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme); new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] }); } catch (e) {}
+
+three = init3D();
+if (!three) { $("v-iso").disabled = true; $("v-top").disabled = true; setView("2d"); } else { resize3D(three); }
+try { new ResizeObserver(() => { if (three) resize3D(three); bg2d = null; drawTrend(); }).observe($("viewport")); } catch (e) {}
+$("play").textContent = playing ? "Pause" : "Play";
+renderPC(); showRate(); renderPins(); const k0 = renderKpis(); renderInsights(k0); drawTrend(); tickClock();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

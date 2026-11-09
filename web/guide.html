@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>fleetsim Field Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..650;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a long-read study guide on a concrete-floor palette; sticky chapter rail on wide screens,
+   demos sit in "floor plates" that reuse the colours of the fleetsim GIF (orange robot, green station, blue pod slot). */
+:root {
+  --bg: #f2f3ef;          /* warehouse concrete */
+  --plate: #e6e8e2;       /* demo floor plate */
+  --card: #fbfbf8;
+  --fg: #1d221f;
+  --muted: #5b645d;
+  --line: #c9cec5;
+  --accent: #d9680a;      /* drive-unit orange */
+  --accent-ink: #a94f05;
+  --station: #3a9a4c;
+  --pod: #cfe0ee;
+  --shelf: #3a403c;
+  --floor: #f7f8f5;
+  --blue: #3567ae;
+  --bad: #c93226;
+  --code-bg: #e9ebe5;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131614; --plate: #1b1f1c; --card: #1f2420; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35;
+    --accent: #f08a2e; --accent-ink: #f6a45a; --station: #5dbb6c; --pod: #2c3d4c; --shelf: #070908;
+    --floor: #262b27; --blue: #7aa3e0; --bad: #ef6a5c; --code-bg: #232823; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131614; --plate: #1b1f1c; --card: #1f2420; --fg: #e5e8e2; --muted: #9ba39c; --line: #343b35;
+  --accent: #f08a2e; --accent-ink: #f6a45a; --station: #5dbb6c; --pod: #2c3d4c; --shelf: #070908;
+  --floor: #262b27; --blue: #7aa3e0; --bad: #ef6a5c; --code-bg: #232823; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 1.0625rem; line-height: 1.62;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 4rem;
+}
+a { color: var(--accent-ink); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, kbd, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px; }
+pre { background: var(--code-bg); padding: 0.9rem 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h2 { font-size: clamp(1.55rem, 1.2rem + 1.4vw, 2.1rem); font-stretch: 112%; font-weight: 750; letter-spacing: -0.01em; }
+h3 { font-size: 1.2rem; font-weight: 700; font-stretch: 105%; margin-top: 2rem; }
+h4 { font-size: 1rem; font-weight: 700; }
+p { margin: 0.75rem 0; }
+.eyebrow { font-family: var(--font-display); font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-stretch: 110%; }
+.muted { color: var(--muted); }
+
+/* ---------- header ---------- */
+.masthead { max-width: 1180px; margin: 0 auto; padding-block: 2.6rem 1.6rem; border-bottom: 1px solid var(--line); }
+.masthead h1 { font-size: clamp(2.3rem, 1.4rem + 4.2vw, 4.4rem); font-weight: 800; font-stretch: 122%; letter-spacing: -0.02em; margin-top: 0.4rem; }
+.masthead h1 .tape { background: repeating-linear-gradient(-45deg, var(--accent) 0 10px, transparent 10px 20px); background-size: 100% 0.18em; background-repeat: no-repeat; background-position: 0 100%; padding-bottom: 0.08em; }
+.masthead .lede { max-width: 62ch; font-size: 1.15rem; color: var(--fg); }
+.outcomes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.6rem 1.4rem; margin-top: 1.2rem; padding: 0; list-style: none; max-width: 980px; }
+.outcomes li { font-size: 0.95rem; padding-left: 1.1rem; position: relative; }
+.outcomes li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 0.55rem; height: 0.55rem; background: var(--accent); border-radius: 50%; }
+
+/* ---------- body layout ---------- */
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 2rem; }
+@media (min-width: 1040px) { .wrap { grid-template-columns: 220px minmax(0, 1fr); gap: 3rem; } }
+.rail { display: none; }
+@media (min-width: 1040px) {
+  .rail { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 1.5rem); align-self: start; padding-top: 2.2rem; }
+  .rail ol { list-style: none; padding: 0; margin: 0; counter-reset: ch; display: grid; gap: 0.15rem; }
+  .rail li { counter-increment: ch; }
+  .rail a { display: grid; grid-template-columns: 1.8rem 1fr; text-decoration: none; color: var(--muted); font-family: var(--font-display); font-size: 0.88rem; font-weight: 600; padding: 0.3rem 0.4rem; border-radius: 4px; line-height: 1.3; }
+  .rail a::before { content: counter(ch, decimal-leading-zero); font-family: var(--font-mono); font-size: 0.75rem; font-weight: 400; padding-top: 0.1rem; }
+  .rail a:hover, .rail a.on { color: var(--fg); background: var(--plate); }
+  .rail a.on::before { color: var(--accent-ink); }
+}
+main { min-width: 0; }
+.chapter { padding-top: 2.6rem; scroll-margin-top: 1rem; }
+.chapter > .prose, .chapter > p, .chapter > h3, .chapter > ul, .chapter > ol, .chapter > .note { max-width: 68ch; }
+.chapter-head { display: flex; gap: 0.9rem; align-items: baseline; margin-bottom: 0.6rem; }
+.chapter-head .num { font-family: var(--font-mono); color: var(--accent-ink); font-size: 0.9rem; }
+.chapter ul, .chapter ol { padding-left: 1.25rem; }
+.chapter li { margin: 0.3rem 0; }
+.note { border-left: 3px solid var(--accent); padding: 0.2rem 0 0.2rem 1rem; color: var(--fg); margin: 1.2rem 0; }
+.note strong:first-child { font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; display: block; color: var(--accent-ink); }
+
+/* pipeline */
+.pipeline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: stretch; margin: 1.4rem 0; }
+.stage { flex: 1 1 140px; min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.7rem 0.8rem; position: relative; }
+.stage .eyebrow { color: var(--accent-ink); }
+.stage h4 { margin-top: 0.15rem; font-size: 0.98rem; }
+.stage p { margin: 0.3rem 0 0; font-size: 0.86rem; line-height: 1.45; color: var(--muted); }
+
+/* legend chips */
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem; font-size: 0.9rem; margin: 0.8rem 0; }
+.chip { display: inline-flex; align-items: center; gap: 0.4rem; }
+.sw { width: 1rem; height: 1rem; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+.mapchar { font-family: var(--font-mono); font-weight: 600; }
+
+/* demo plates */
+.plate { background: var(--plate); border-radius: 10px; padding: 1rem; margin: 1.5rem 0; }
+.plate-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; align-items: baseline; margin-bottom: 0.7rem; }
+.plate-head h4 { font-size: 1.02rem; }
+.plate-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+@media (min-width: 760px) { .plate-grid.two { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
+.canvas-box { min-width: 0; }
+canvas { display: block; width: 100%; height: auto; border-radius: 6px; background: var(--floor); touch-action: manipulation; }
+.controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; margin-top: 0.7rem; }
+button, .seg label {
+  font-family: var(--font-display); font-size: 0.85rem; font-weight: 650; letter-spacing: 0.01em;
+  background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 0.42rem 0.75rem; cursor: pointer;
+}
+button:hover, .seg label:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seg { display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); flex-wrap: wrap; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
+.seg label:last-of-type { border-right: 0; }
+.seg input:checked + label { background: var(--fg); color: var(--bg); }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+.check { display: inline-flex; gap: 0.4rem; align-items: center; font-size: 0.9rem; }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 0.5rem; margin-bottom: 0.8rem; }
+.readout div { background: var(--card); border-radius: 6px; padding: 0.45rem 0.6rem; }
+.readout .k { font-family: var(--font-display); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.readout .v { font-family: var(--font-mono); font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.readout .v.bad { color: var(--bad); }
+.readout .v.good { color: var(--station); }
+.explain { font-size: 0.93rem; line-height: 1.5; }
+.explain p { margin: 0.45rem 0; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; margin: 0.8rem 0; }
+table { border-collapse: collapse; font-size: 0.88rem; width: 100%; }
+th, td { text-align: left; padding: 0.42rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-display); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+td.num, th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.robot-table td, .robot-table th { padding: 0.3rem 0.45rem; font-size: 0.82rem; }
+.dot { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; vertical-align: -0.05rem; margin-right: 0.3rem; }
+.status-ok { color: var(--station); font-weight: 600; }
+.status-bad { color: var(--bad); font-weight: 600; }
+
+/* cost matrix */
+.matrix td, .matrix th { text-align: center; font-family: var(--font-mono); font-size: 0.82rem; padding: 0.35rem 0.4rem; }
+.matrix th { font-family: var(--font-display); }
+.matrix td.g { box-shadow: inset 0 0 0 2px var(--blue); }
+.matrix td.o { background: color-mix(in srgb, var(--accent) 28%, transparent); font-weight: 600; }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.7rem; }
+.totals div { background: var(--card); border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.88rem; }
+.totals b { font-family: var(--font-mono); font-size: 1.1rem; }
+.key-blue { color: var(--blue); font-weight: 700; }
+.key-orange { color: var(--accent-ink); font-weight: 700; }
+
+/* svg figures */
+.figure { margin: 1.4rem 0; }
+.figure svg { width: 100%; height: auto; max-width: 640px; display: block; }
+.figure figcaption { font-size: 0.88rem; color: var(--muted); max-width: 68ch; margin-top: 0.5rem; }
+.svg-text { fill: var(--fg); font-family: var(--font-mono); font-size: 11px; }
+.svg-muted { fill: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+.slider-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin-bottom: 0.6rem; }
+input[type="range"] { width: min(320px, 100%); accent-color: var(--accent); }
+
+/* Q&A */
+details { border-top: 1px solid var(--line); padding: 0.7rem 0; max-width: 72ch; }
+details:last-of-type { border-bottom: 1px solid var(--line); }
+summary { cursor: pointer; font-family: var(--font-display); font-weight: 650; font-size: 1rem; }
+details p, details ul { font-size: 0.97rem; }
+.formula { font-family: var(--font-mono); background: var(--card); border-radius: 6px; padding: 0.6rem 0.9rem; display: inline-block; margin: 0.4rem 0; font-size: 0.92rem; }
+footer { max-width: 1180px; margin: 3rem auto 0; padding-top: 1.2rem; border-top: 1px solid var(--line); font-size: 0.88rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="eyebrow">fleetsim v0.1 · study guide</div>
+  <h1>How a robot fleet <span class="tape">thinks</span></h1>
+  <p class="lede">The ideas behind fleetsim, in the order the code uses them. Every number here comes from <code>fleetsim bench</code>. The demos run the same algorithms in your browser on a toy warehouse. <a href="live.html">Try the full live simulator</a> · <a href="index.html">project home</a></p>
+  <ul class="outcomes">
+    <li>Explain why a fleet needs MAPF and not just A*</li>
+    <li>Draw a reservation table and walk through space-time A*</li>
+    <li>Say why prioritized planning is fast but incomplete</li>
+    <li>Compare greedy and Hungarian assignment and name the catch</li>
+    <li>Define the KPIs and check them with Little's law</li>
+  </ul>
+</header>
+
+<div class="wrap">
+  <nav class="rail" aria-label="Chapters">
+    <ol>
+      <li><a href="#loop">The tick loop</a></li>
+      <li><a href="#map">Warehouse as a graph</a></li>
+      <li><a href="#orders">Orders and load</a></li>
+      <li><a href="#astar">One robot: A*</a></li>
+      <li><a href="#mapf">Many robots: MAPF</a></li>
+      <li><a href="#alloc">Who fetches what</a></li>
+      <li><a href="#kpi">Measuring the fleet</a></li>
+      <li><a href="#sql">Ticks to SQL</a></li>
+      <li><a href="#results">What v0.1 shows</a></li>
+      <li><a href="#interview">Interview drill</a></li>
+      <li><a href="#code">Where it lives</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- 1 -->
+    <section class="chapter" id="loop">
+      <div class="chapter-head"><span class="num">01</span><h2>The tick loop</h2></div>
+      <p>fleetsim is a <strong>discrete-time simulation</strong>. Time moves in ticks of one second. In one tick a robot either moves to a neighbouring cell or waits. Each run is 10 minutes of warm-up plus one measured hour, so 4,200 ticks. Every tick runs the same five steps:</p>
+      <div class="pipeline" role="list">
+        <div class="stage" role="listitem"><div class="eyebrow">orders.py</div><h4>New orders arrive</h4><p>A random number of orders, from a Poisson stream. Each says "bring pod p to station s, then put it back".</p></div>
+        <div class="stage" role="listitem"><div class="eyebrow">allocation.py</div><h4>Match robots to orders</h4><p>Free robots get pending orders: greedy every tick, or Hungarian every 5 ticks.</p></div>
+        <div class="stage" role="listitem"><div class="eyebrow">planner.py</div><h4>Book a route</h4><p>Space-time A* books the whole errand, avoiding every route already booked.</p></div>
+        <div class="stage" role="listitem"><div class="eyebrow">sim.py</div><h4>Everyone steps</h4><p>Each robot follows its booked route: one cell forward, or a wait.</p></div>
+        <div class="stage" role="listitem"><div class="eyebrow">analytics.py</div><h4>Log a row per robot</h4><p>Position, state and order go into the tick log, then into SQLite and Parquet.</p></div>
+      </div>
+      <p>An <strong>errand</strong> is the robot's whole job for one order: drive to the pod, lift it (2 s), drive to the station, wait while a worker picks items (10 s), drive back, put the pod down (2 s), then go home and park. This is the <em>goods-to-person</em> model Amazon Robotics (formerly Kiva) made famous. Shelves come to the picker instead of the picker walking the aisles.</p>
+    </section>
+
+    <!-- 2 -->
+    <section class="chapter" id="map">
+      <div class="chapter-head"><span class="num">02</span><h2>The warehouse as a graph</h2></div>
+      <p>The floor comes from the <strong>League of Robot Runners</strong> (LoRR), a yearly competition for lifelong multi-robot planning. Its map file is a grid of characters:</p>
+      <div class="legend">
+        <span class="chip"><span class="sw" style="background:var(--shelf)"></span><span class="mapchar">@</span>&nbsp;shelving, can't drive through</span>
+        <span class="chip"><span class="sw" style="background:var(--floor)"></span><span class="mapchar">.</span>&nbsp;open floor</span>
+        <span class="chip"><span class="sw" style="background:var(--pod)"></span><span class="mapchar">S</span>&nbsp;service point = one pod's storage slot</span>
+        <span class="chip"><span class="sw" style="background:var(--station)"></span><span class="mapchar">E</span>&nbsp;emitter = pick station</span>
+      </div>
+      <p>fleetsim cuts a 72 × 99 block from the 140 × 500 map. It has 4,109 drivable cells, 2,920 pod slots and 19 stations on the left wall. Each drivable cell is a <strong>node</strong>. Two nodes share an <strong>edge</strong> if they touch up, down, left or right. That is a <em>4-connected grid graph</em>, and every planning question becomes a graph question.</p>
+      <h3>Distance means path length</h3>
+      <p>Two cells can be close as the crow flies but far apart if a shelf row sits between them. fleetsim measures distance with <strong>breadth-first search (BFS)</strong>: start at a cell, label its neighbours 1, their unlabelled neighbours 2, and so on outward. A full sweep of this map takes about 3 ms in Python. The result is a <em>distance field</em>: the true travel time from any cell to that cell. <code>Grid.dist_to</code> keeps the last 2,048 fields in an LRU cache, because the same stations and pods come up again and again. Toggle "Show distance field" in the demo in chapter 05 to see one.</p>
+      <h3>Homes must not wall anyone in</h3>
+      <p>An idle robot parks on its <em>home</em> cell and stays there, so other robots treat it as a wall. <code>choose_parking</code> only picks open-floor cells away from stations. It accepts a cell only if blocking every chosen home still leaves the rest of the floor connected, which it checks with BFS. As a result every pod and station stays reachable however many robots are parked.</p>
+    </section>
+
+    <!-- 3 -->
+    <section class="chapter" id="orders">
+      <div class="chapter-head"><span class="num">03</span><h2>Orders and load</h2></div>
+      <p>Orders arrive as a <strong>Poisson process</strong> with rate λ (orders per second). Think of it as an independent, slightly loaded coin flip every instant. Arrivals are memoryless: a busy minute doesn't make the next minute quieter. The count in one tick is Poisson-distributed with mean λ, and the gaps between orders are exponential. <code>OrderStream.arrivals</code> draws <code>rng.poisson(rate)</code> once per tick.</p>
+      <h3>Offered load ρ</h3>
+      <p>How busy is the fleet? Compare the work arriving with the work the fleet can do:</p>
+      <div class="formula">ρ = λ × (mean errand time) / N robots</div>
+      <p>fleetsim picks λ from ρ. It estimates the uncongested errand time by sampling 300 random errands with BFS distances (<code>estimate_cycle_time</code>). At <strong>ρ = 0.85</strong> robots are busy about 85% of the time and the queue stays short. At <strong>ρ = 1.3</strong> work arrives 30% faster than the fleet can finish it. Queueing theory says that queue <em>never settles</em>: it grows roughly in a straight line, forever. That's why the wait times at load 1.3 in the README depend on run length. Try it with ten robots below.</p>
+
+      <div class="plate" id="queue-demo">
+        <div class="plate-head"><h4>Stable vs. unstable queue (10 robots, ~200 s per errand)</h4><span class="eyebrow">simulated in your browser</span></div>
+        <div class="slider-row">
+          <label for="rho"><strong>Offered load ρ = <span id="rho-val" class="mono">0.85</span></strong></label>
+          <input type="range" id="rho" min="0.5" max="1.5" step="0.05" value="0.85">
+          <button type="button" data-rho="0.85">0.85</button>
+          <button type="button" data-rho="1.3">1.3</button>
+        </div>
+        <div class="readout">
+          <div><div class="k">Orders / h offered</div><div class="v" id="q-off">–</div></div>
+          <div><div class="k">Done / h</div><div class="v" id="q-done">–</div></div>
+          <div><div class="k">Mean wait</div><div class="v" id="q-wait">–</div></div>
+          <div><div class="k">Queue at 3 h</div><div class="v" id="q-end">–</div></div>
+        </div>
+        <svg id="q-chart" viewBox="0 0 640 230" role="img" aria-label="Orders waiting over three hours"></svg>
+        <p class="explain muted">Orders waiting for a robot over 3 hours. Arrivals are Poisson; each errand takes 150–250 s. Grey line: ρ = 0.85 for reference. Above ρ = 1 the line drifts up and never comes back down.</p>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="chapter" id="astar">
+      <div class="chapter-head"><span class="num">04</span><h2>One robot: A*</h2></div>
+      <p>For a single robot, the shortest path is a classic search problem. <strong>A*</strong> expands cells in order of</p>
+      <div class="formula">f(n) = g(n) + h(n)</div>
+      <ul>
+        <li><strong>g(n)</strong>: cost so far, i.e. steps taken from the start.</li>
+        <li><strong>h(n)</strong>: an estimate of the steps still needed. A* returns an optimal path if h never <em>overestimates</em>. Such an h is called <strong>admissible</strong>.</li>
+      </ul>
+      <p>fleetsim uses the BFS distance field from chapter 02 as h. It's the exact remaining distance with no other robots around, so it's admissible and as tight as possible. With a perfect heuristic A* barely explores sideways: it walks straight down the gradient. Other robots then become the main reason it has to search wider.</p>
+      <div class="note"><strong>Why not stop here?</strong>Plan every robot with plain A* and they ignore each other. Two robots will reach the same cell at the same second, or swap places through each other in an aisle. The first demo mode in chapter 05 does exactly that so you can count the crashes.</div>
+    </section>
+
+    <!-- 5 -->
+    <section class="chapter" id="mapf">
+      <div class="chapter-head"><span class="num">05</span><h2>Many robots: MAPF</h2></div>
+      <p><strong>Multi-agent path finding (MAPF)</strong>: give every robot a path so that no two collide. Planning all robots jointly is exact, but the joint state space grows exponentially: 100 robots on 4,109 cells is hopeless. Practical systems decompose the problem. fleetsim uses the most common decomposition: <strong>prioritized planning with space-time A*</strong>.</p>
+
+      <h3>Two ways to collide</h3>
+      <figure class="figure">
+        <svg id="conflict-fig" viewBox="0 0 640 120" role="img" aria-label="Vertex conflict and swap conflict"></svg>
+        <figcaption><strong>Vertex conflict</strong>: two robots on the same cell at the same tick. <strong>Edge (swap) conflict</strong>: two robots trade cells in the same tick, passing through each other. fleetsim's checker also flags <em>teleports</em> (a jump to a non-adjacent cell) and standing on a shelf.</figcaption>
+      </figure>
+
+      <h3>Add time as a third axis</h3>
+      <p>Plain A* searches over <em>cells</em>. <strong>Space-time A*</strong> searches over <em>(cell, tick)</em> pairs and adds one extra move: <strong>wait</strong>, which stays on the cell and advances the tick. To know which (cell, tick) pairs are taken, it reads a <strong>reservation table</strong>:</p>
+      <ul>
+        <li><strong>vertex</strong> entries: <code>(cell, t) → robot</code></li>
+        <li><strong>edge</strong> entries: <code>(from, to, t) → robot</code>, for a move during t → t+1. Before moving a → b, the planner checks for <code>(b, a, t)</code>, which would mean a swap.</li>
+        <li><strong>park</strong> entries: <code>cell → (robot, from tick)</code> for a robot that stops there for good</li>
+      </ul>
+      <figure class="figure">
+        <svg id="rt-fig" viewBox="0 0 640 280" role="img" aria-label="Reservation table along a corridor"></svg>
+        <figcaption>One corridor, cells 0–6 across, ticks down. Robot A is booked first and drives right one cell per tick (orange). Robot B wants to cross the corridor at cell 3 at tick 3, but A holds (3, 3). Space-time A* finds the cheapest fix: B waits one tick outside and crosses at tick 4. The heuristic keeps the search short. Besides the distance field, fleetsim also uses a lower bound on the earliest tick the goal can be free.</figcaption>
+      </figure>
+
+      <h3>Prioritized planning</h3>
+      <p>Plan robots <strong>one at a time</strong>. Each new robot treats every booked route as a moving obstacle. In fleetsim the priority order is simply the order in which robots get orders. Three rules make it safe in a warehouse that never stops (<em>lifelong</em> MAPF):</p>
+      <ol>
+        <li><strong>Book the whole errand at once</strong>: pod, dwell, station, dwell, pod, dwell, home (<code>plan_errand</code>). For a dwell, the goal cell must stay free for the whole lift, pick or drop.</li>
+        <li><strong>Every robot always holds a plan that runs forever</strong>: its booked route, then parked on the last cell. A parked robot has to arrive after the last tick anyone else is booked on that cell.</li>
+        <li><strong>If the search fails, keep the old plan.</strong> The old plan was conflict-free and still is, so the robot keeps waiting at home and the order goes back in the queue.</li>
+      </ol>
+      <p>Together these make collisions impossible <em>by construction</em>: nothing ever enters the table unless it avoids everything already there. fleetsim still checks independently. <code>find_conflicts</code> re-reads the logged positions, and the tests run it on whole simulations. All 12 benchmark runs, 2.7 M robot-ticks, came back clean.</p>
+
+      <div class="plate" id="mapf-demo">
+        <div class="plate-head"><h4>Six robots, one toy warehouse</h4><span class="eyebrow">same algorithm as planner.py</span></div>
+        <div class="plate-grid two">
+          <div class="canvas-box">
+            <div class="seg" role="radiogroup" aria-label="Planning mode">
+              <input type="radio" name="mode" id="mode-solo" value="solo"><label for="mode-solo">Plain A*, each robot alone</label>
+              <input type="radio" name="mode" id="mode-pp" value="pp" checked><label for="mode-pp">Prioritized space-time A*</label>
+            </div>
+            <canvas id="mapf-canvas" width="600" height="380" style="margin-top:0.7rem" aria-label="Animated warehouse grid with robots"></canvas>
+            <div class="controls">
+              <button type="button" class="primary" id="mapf-play">Play</button>
+              <button type="button" id="mapf-step">Step +1</button>
+              <button type="button" id="mapf-reset">Back to t = 0</button>
+              <button type="button" id="mapf-new">New scenario</button>
+              <label class="check"><input type="checkbox" id="mapf-dist"> Show distance field to robot 1's goal</label>
+            </div>
+          </div>
+          <div class="explain">
+            <div class="readout">
+              <div><div class="k">Tick</div><div class="v" id="m-t">0</div></div>
+              <div><div class="k">Collisions</div><div class="v" id="m-col">0</div></div>
+              <div><div class="k">Wait steps</div><div class="v" id="m-wait">0</div></div>
+            </div>
+            <div class="tbl-wrap">
+              <table class="robot-table">
+                <thead><tr><th>Robot</th><th class="num">Shortest</th><th class="num">Planned</th><th class="num">Waits</th><th>Status</th></tr></thead>
+                <tbody id="m-rows"></tbody>
+              </table>
+            </div>
+            <p>Rows are in priority order: robot 1 plans first. Small squares mark each robot's goal. A red ring means a collision on this tick.</p>
+            <p>Switch modes on the same scenario. Plain A* gives the shortest paths and crashes. Prioritized planning adds a few waits or detours and never crashes. Robots planned later usually pay more.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>The catch: incomplete</h3>
+      <p>Prioritized planning can fail even when a solution exists. Say a high-priority robot parks at the end of a dead-end aisle that a lower-priority robot needed to get through. The low-priority robot can't change the earlier booking, so it finds no route. Try "New scenario" a few times: now and then a robot shows <span class="status-bad">no route</span>. In fleetsim 0–2% of errand plans fail this way and are retried a few ticks later. Stronger methods search over priority orders (Priority-Based Search, PBS), replan in rolling windows (RHCR, used for lifelong warehouses), or use rule-based solvers built for thousands of agents (PIBT, LaCAM). Those are roadmap items.</p>
+    </section>
+
+    <!-- 6 -->
+    <section class="chapter" id="alloc">
+      <div class="chapter-head"><span class="num">06</span><h2>Who fetches what</h2></div>
+      <p>With several free robots and several waiting orders, which robot takes which order? This is the <strong>assignment problem</strong>. Build a cost matrix C where <code>C[i][j]</code> is the BFS travel time from robot i to the pod of order j. Then choose pairs, each robot and each order used at most once, to keep total travel low.</p>
+      <ul>
+        <li><strong>Greedy, first come first served</strong> (<code>GreedyAllocator</code>): every tick, take the oldest order and give it the nearest free robot; repeat. It's fast and fair to old orders, but an early choice can grab a robot that a later order needed more.</li>
+        <li><strong>Hungarian</strong> (<code>HungarianAllocator</code>): find the assignment with the <em>minimum total</em> cost. Kuhn published it in 1955. It runs in O(n³), and SciPy exposes it as <code>linear_sum_assignment</code>, which also handles rectangular matrices. fleetsim re-solves every k = 5 ticks over the oldest 2 × (free robots) orders.</li>
+      </ul>
+
+      <div class="plate" id="alloc-demo">
+        <div class="plate-head"><h4>Greedy vs. optimal on the toy warehouse</h4><span class="eyebrow">exact optimum by trying every assignment</span></div>
+        <div class="controls" style="margin-top:0;margin-bottom:0.7rem">
+          <div class="seg" role="radiogroup" aria-label="Scenario">
+            <input type="radio" name="scen" id="scen-even" value="even" checked><label for="scen-even">4 robots, 4 orders</label>
+            <input type="radio" name="scen" id="scen-backlog" value="backlog"><label for="scen-backlog">4 robots, 8 orders (backlog)</label>
+          </div>
+          <div class="seg" role="radiogroup" aria-label="Show">
+            <input type="radio" name="show" id="show-g" value="g"><label for="show-g">Greedy</label>
+            <input type="radio" name="show" id="show-o" value="o"><label for="show-o">Optimal</label>
+            <input type="radio" name="show" id="show-b" value="b" checked><label for="show-b">Both</label>
+          </div>
+          <button type="button" id="alloc-new">New positions</button>
+        </div>
+        <div class="plate-grid two">
+          <div class="canvas-box"><canvas id="alloc-canvas" width="600" height="380" aria-label="Robots and order pods with assignment routes"></canvas></div>
+          <div class="explain">
+            <div class="tbl-wrap"><table class="matrix" id="alloc-matrix"></table></div>
+            <p><span class="key-blue">Blue outline</span> = greedy pick, <span class="key-orange">orange fill</span> = optimal pick. Order numbers give arrival order: #1 is oldest.</p>
+            <div class="totals" id="alloc-totals"></div>
+          </div>
+        </div>
+      </div>
+
+      <h3>What the benchmark found</h3>
+      <p>At load 0.85 the two policies tie (122 vs 122, 658 vs 651, 1,335 vs 1,340 tasks/h). There's rarely more than one order waiting, so there's nothing to optimise, and Hungarian adds about 2 s of latency because it batches. At load 1.3 Hungarian completes 16–20% more (100 robots: 1,619 → 1,892 tasks/h), and three seeds agree.</p>
+      <div class="note"><strong>The catch</strong>With a backlog, Hungarian also decides <em>which</em> orders get served, and minimising travel favours orders whose pods sit near free robots. That works like "shortest job first", a different queue discipline. Greedy here is first come first served. So part of the +17% is a fairer-vs-faster trade-off, not pure optimisation. Look for it in the backlog scenario above: optimal tends to skip a far-away old order. The fair test for v0.2 adds a greedy "nearest order for each free robot" baseline.</div>
+    </section>
+
+    <!-- 7 -->
+    <section class="chapter" id="kpi">
+      <div class="chapter-head"><span class="num">07</span><h2>Measuring the fleet</h2></div>
+      <p>All KPIs are computed over the measured hour only. The 600-tick warm-up is skipped so the empty start doesn't flatter the numbers. Example values: 100 robots, greedy, load 0.85.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>KPI</th><th>Definition</th><th class="num">Value</th></tr></thead>
+          <tbody>
+            <tr><td>Throughput</td><td>pods returned to their slot during the hour</td><td class="num">1,335 / h</td></tr>
+            <tr><td>Utilization</td><td>share of robot-ticks spent on an order (to pod, lift, to station, pick, return, drop)</td><td class="num">70.7%</td></tr>
+            <tr><td>Travel-wait</td><td>share of travelling robot-ticks after which the robot stays put, yielding to another robot or waiting for a busy station</td><td class="num">2.1%</td></tr>
+            <tr><td>Congestion delay</td><td>actual errand time minus its free-flow time (BFS distances + dwells)</td><td class="num">7.3 s</td></tr>
+            <tr><td>Order wait</td><td>creation → assignment, <em>censored</em> (see below)</td><td class="num">0 s</td></tr>
+            <tr><td>Planner time</td><td>wall-clock time of one full-errand plan, pure Python</td><td class="num">2.7 ms mean</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Sanity check with Little's law</h3>
+      <p>For any stable system, <strong>L = λ W</strong>: items in the system = arrival rate × time each one spends inside. It holds whatever the arrival or service distributions are, which makes it a great check on a simulator.</p>
+      <div class="formula">λ = 1,335 / 3,600 = 0.371 orders/s · W = 193 s mean lead time → L ≈ 71.6 orders in progress</div>
+      <p>Utilization says 70.7 of 100 robots are on an order at any moment, and each busy robot carries exactly one order. 71.6 vs 70.7: the bookkeeping holds up. The small gap is mostly time-to-assignment and edge effects at the window boundary.</p>
+      <h3>Censored waits and survivorship bias</h3>
+      <p>Averaging wait time over <em>completed</em> orders rewards a policy that never serves its hardest orders, because those never complete and never count. fleetsim counts every order created in the window. An order still unassigned at the end counts with the wait it has built up so far. Statisticians call this a <em>censored</em> observation. In credit-risk terms it's the same as keeping loans that haven't defaulted <em>yet</em> in the denominator.</p>
+      <h3>Two kinds of congestion</h3>
+      <p><strong>Travel-wait</strong> counts the moments a robot stands still. <strong>Congestion delay</strong> also counts detours, since a robot that goes around a jam never stops but still arrives late. At 100 robots both are small here (≤ 3%, 7–10 s on a ~190 s errand). This map isn't crowded at 2.4% density. The notebook's heatmap shows where the waits cluster: the left-wall corridor in front of the stations.</p>
+    </section>
+
+    <!-- 8 -->
+    <section class="chapter" id="sql">
+      <div class="chapter-head"><span class="num">08</span><h2>From ticks to SQL</h2></div>
+      <p>The log is <strong>one row per robot per tick</strong>, the finest grain available. Every KPI is an aggregate of that grain, so you can always re-derive a number and never depend on a pre-computed summary. Same principle as keeping loan-level data instead of only portfolio totals.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Table</th><th>Grain</th><th>Key columns</th></tr></thead>
+          <tbody>
+            <tr><td><code>runs</code></td><td>one simulation</td><td>n_robots, allocator, load, rate_per_tick, warmup, ticks</td></tr>
+            <tr><td><code>ticks</code></td><td>robot × tick</td><td>tick, robot, row, col, state, moved, waiting, order_id</td></tr>
+            <tr><td><code>orders</code></td><td>order</td><td>created, assigned, picked, at_station, serviced, completed, free_flow (−1 = not yet)</td></tr>
+            <tr><td><code>plans</code></td><td>planner call</td><td>tick, robot, ms, ok, expansions, n_pending</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>SQLite</strong> for ad-hoc SQL with zero setup; <strong>Parquet</strong> (columnar, compressed) for pandas, DuckDB or Spark later. The same data is 250 MB as SQLite and 7 MB as Parquet. That gap is why columnar formats rule analytics. Utilization and travel-wait per run, in one query:</p>
+<pre><code>SELECT r.n_robots, r.allocator, r.load,
+       AVG(t.state IN ('to_pod','lift','to_station','service','return','drop')) AS utilization,
+       1.0 * SUM(t.waiting)
+           / SUM(t.state IN ('to_pod','to_station','return'))                    AS travel_wait_share
+FROM ticks t JOIN runs r USING (run_id)
+WHERE t.tick &gt;= r.warmup AND t.tick &lt; r.warmup + r.ticks - 1
+GROUP BY t.run_id;</code></pre>
+      <p>In SQLite a comparison returns 0 or 1, so <code>AVG(condition)</code> is a share and <code>SUM(condition)</code> is a count. The notebook builds every README KPI this way. The SQL and Python numbers match exactly, a useful cross-check.</p>
+    </section>
+
+    <!-- 9 -->
+    <section class="chapter" id="results">
+      <div class="chapter-head"><span class="num">09</span><h2>What v0.1 shows, and what it doesn't</h2></div>
+      <ul>
+        <li><strong>Shows:</strong> zero collisions in every run, checked independently of the planner that produced them.</li>
+        <li><strong>Shows:</strong> throughput grows almost linearly from 10 to 100 robots on this map. 100 robots here is not congestion-bound.</li>
+        <li><strong>Shows:</strong> assignment only matters when there's a backlog to choose from.</li>
+        <li><strong>Doesn't show:</strong> behaviour at realistic density. Amazon floors run far denser than 2.4%. Next stress test: 200–400 robots on a tighter crop.</li>
+        <li><strong>Doesn't show:</strong> that Hungarian beats a smarter greedy. The queue-discipline confound in chapter 06 is still open.</li>
+        <li><strong>Doesn't show:</strong> steady-state waits at load 1.3, which don't exist when ρ &gt; 1 (chapter 03).</li>
+        <li><strong>Simplified:</strong> no turning time, acceleration, execution delays or battery. Pods aren't physical obstacles while carried. Single map, single crop.</li>
+      </ul>
+    </section>
+
+    <!-- 10 -->
+    <section class="chapter" id="interview">
+      <div class="chapter-head"><span class="num">10</span><h2>Interview drill</h2></div>
+      <p class="muted">Answer out loud first, then open the card.</p>
+      <details><summary>Why can't each robot just run A*?</summary><p>A* plans for one agent in a static world. Robots are moving obstacles for each other. Independent paths collide (vertex conflicts) or pass through each other (swap conflicts). Planning all robots jointly is exact but exponential in the number of robots. MAPF methods sit in between.</p></details>
+      <details><summary>Walk me through space-time A*.</summary><p>The search state is (cell, tick), and "wait" is a legal move. A successor is valid if no other robot holds that (cell, tick), no robot is crossing the same edge the other way, and no parked robot sits there. The heuristic is the BFS distance to the goal, which ignores other robots so it never overestimates. For the final parking goal, arrival must come after the last tick anyone else uses that cell.</p></details>
+      <details><summary>Is prioritized planning complete? Optimal?</summary><p>Neither. Fixed priorities can rule out every solution, for example an early robot parking in a dead end a later robot must pass. Each robot gets an optimal path given the earlier bookings, but the fleet total isn't optimal. It's used because it's fast, simple and works well at moderate density. Fixes: search over priorities (PBS), random restarts, windowed replanning (RHCR), or PIBT/LaCAM at very large scale.</p></details>
+      <details><summary>How do you know there are zero collisions?</summary><p>Three layers. (1) Invariant: the table only accepts routes that avoid all current bookings, and a failed search keeps the old, still valid, plan. (2) An independent checker re-reads logged positions for vertex, swap, teleport and obstacle violations; it shares no code with the planner. (3) Unit tests cover each conflict type plus whole simulations with both allocators.</p></details>
+      <details><summary>Greedy vs Hungarian: when does it matter?</summary><p>Only when there's a choice, i.e. several free robots and several pending orders. At load 0.85 they tie. With a backlog Hungarian wins about 17% on throughput, but part of that is that it serves nearby orders first, which hurts fairness: its worst wait is sometimes longer. I'd report a tail-latency metric next to throughput and add an aging penalty if fairness matters.</p></details>
+      <details><summary>Why log every tick instead of just KPIs?</summary><p>Grain. With robot × tick data you can recompute any KPI, slice by region (congestion heatmap), audit odd numbers, and run checks like Little's law. Summary-only logging locks in today's questions. Parquet keeps it cheap: 7 MB for 2.7 M rows.</p></details>
+      <details><summary>What would you change to run this for real?</summary><p>Move the planner core to C++ (10–100× faster) behind ROS 2 action servers. Plan in rolling windows so robots can replan when delayed. Add execution-delay handling (LoRR models random delays). Use a smarter dispatcher with aging. Validate against Gazebo/Isaac physics before hardware.</p></details>
+    </section>
+
+    <!-- 11 -->
+    <section class="chapter" id="code">
+      <div class="chapter-head"><span class="num">11</span><h2>Where each idea lives</h2></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Idea</th><th>File</th><th>Look for</th></tr></thead>
+          <tbody>
+            <tr><td>Map parsing, BFS, distance cache, homes</td><td><code>src/fleetsim/grid.py</code></td><td><code>Grid.bfs</code>, <code>dist_to</code>, <code>choose_parking</code></td></tr>
+            <tr><td>Poisson orders</td><td><code>src/fleetsim/orders.py</code></td><td><code>OrderStream.arrivals</code></td></tr>
+            <tr><td>Reservation table, space-time A*, errand chaining</td><td><code>src/fleetsim/planner.py</code></td><td><code>ReservationTable</code>, <code>space_time_astar</code>, <code>plan_errand</code></td></tr>
+            <tr><td>Independent collision check</td><td><code>src/fleetsim/checker.py</code></td><td><code>find_conflicts</code></td></tr>
+            <tr><td>Greedy and Hungarian</td><td><code>src/fleetsim/allocation.py</code></td><td><code>GreedyAllocator</code>, <code>HungarianAllocator</code></td></tr>
+            <tr><td>Tick loop, load → rate</td><td><code>src/fleetsim/sim.py</code></td><td><code>run</code>, <code>estimate_cycle_time</code></td></tr>
+            <tr><td>Logs and KPIs</td><td><code>src/fleetsim/analytics.py</code></td><td><code>to_frames</code>, <code>summarize</code></td></tr>
+            <tr><td>SQL analysis, heatmap</td><td><code>notebooks/analytics.ipynb</code></td><td>sections 1–5</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Further reading</h3>
+      <ul>
+        <li>Silver, D. (2005). <em>Cooperative Pathfinding</em>. AIIDE. The paper behind space-time A* and reservation tables.</li>
+        <li>Stern, R. et al. (2019). <em>Multi-Agent Pathfinding: Definitions, Variants, and Benchmarks</em>. SoCS. Standard vocabulary for conflicts and objectives.</li>
+        <li>Li, J. et al. (2021). <em>Lifelong Multi-Agent Path Finding in Large-Scale Warehouses</em>. AAAI. Rolling-horizon planning (RHCR).</li>
+        <li>Ma, H. et al. (2019). <em>Searching with Consistent Prioritization for Multi-Agent Path Finding</em>. AAAI. Priority-Based Search.</li>
+        <li>Kuhn, H. W. (1955). <em>The Hungarian Method for the Assignment Problem</em>. Naval Research Logistics Quarterly.</li>
+        <li>Wurman, P., D'Andrea, R., Mountz, M. (2008). <em>Coordinating Hundreds of Cooperative, Autonomous Vehicles in Warehouses</em>. AI Magazine. The Kiva system.</li>
+        <li><a href="https://github.com/MAPF-Competition/Start-Kit">League of Robot Runners Start-Kit</a>: the maps and the competition format.</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<footer>Written for the fleetsim v0.1 codebase. Benchmark numbers are seed 0 from <code>results/summary.csv</code>; the three-seed check is in the README. The demos are simplified browser ports of the same algorithms.</footer>
+
+<script>
+(() => {
+  "use strict";
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const redrawers = [];
+  const redrawAll = () => redrawers.forEach((f) => f());
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redrawAll);
+    new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  } catch (e) { /* older browsers: no live theme switch */ }
+
+  // ---------- seeded RNG ----------
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+  // ---------- toy warehouse ----------
+  const GRID = [
+    "...............",
+    "E.SSSSS.SSSSS..",
+    "..@@@@@.@@@@@..",
+    "E.SSSSS.SSSSS..",
+    "...............",
+    "E.SSSSS.SSSSS..",
+    "..@@@@@.@@@@@..",
+    "E.SSSSS.SSSSS..",
+    "...............",
+  ];
+  const H = GRID.length, W = GRID[0].length;
+  const ch = (i) => GRID[Math.floor(i / W)][i % W];
+  const isFree = (i) => ch(i) !== "@";
+  const NB = [];
+  for (let i = 0; i < H * W; i++) {
+    const r = Math.floor(i / W), c = i % W, out = [];
+    if (isFree(i)) for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const rr = r + dr, cc = c + dc;
+      if (rr >= 0 && rr < H && cc >= 0 && cc < W && isFree(rr * W + cc)) out.push(rr * W + cc);
+    }
+    NB.push(out);
+  }
+  const FREE = [...Array(H * W).keys()].filter(isFree);
+  const PODS = FREE.filter((i) => ch(i) === "S");
+  const AISLE = FREE.filter((i) => ch(i) === ".");
+  const bfsCache = new Map();
+  function bfs(src) {
+    if (bfsCache.has(src)) return bfsCache.get(src);
+    const d = new Array(H * W).fill(Infinity); d[src] = 0; const q = [src];
+    for (let k = 0; k < q.length; k++) { const u = q[k]; for (const v of NB[u]) if (d[v] === Infinity) { d[v] = d[u] + 1; q.push(v); } }
+    bfsCache.set(src, d); return d;
+  }
+  function shortestPath(a, b) {
+    const d = bfs(b); if (d[a] === Infinity) return null;
+    const p = [a]; let cur = a;
+    while (cur !== b) { cur = NB[cur].find((v) => d[v] === d[cur] - 1); p.push(cur); }
+    return p;
+  }
+  function shuffle(arr, rnd) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  // ---------- canvas helpers ----------
+  function setupCanvas(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = cv.clientWidth || 600;
+    const cell = cssW / W;
+    const cssH = cell * H;
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    cv.style.height = cssH + "px";
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, cell, cssW, cssH };
+  }
+  function drawFloor(ctx, cell) {
+    const col = { "@": css("--shelf"), ".": css("--floor"), S: css("--pod"), E: css("--station") };
+    for (let i = 0; i < H * W; i++) {
+      const r = Math.floor(i / W), c = i % W;
+      ctx.fillStyle = col[ch(i)]; ctx.fillRect(c * cell, r * cell, cell, cell);
+    }
+    ctx.strokeStyle = css("--line"); ctx.lineWidth = 0.5; ctx.globalAlpha = 0.6;
+    for (let c = 0; c <= W; c++) { ctx.beginPath(); ctx.moveTo(c * cell, 0); ctx.lineTo(c * cell, H * cell); ctx.stroke(); }
+    for (let r = 0; r <= H; r++) { ctx.beginPath(); ctx.moveTo(0, r * cell); ctx.lineTo(W * cell, r * cell); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  const center = (i, cell) => [(i % W + 0.5) * cell, (Math.floor(i / W) + 0.5) * cell];
+  const ROBOT_COLORS = ["#e0700f", "#3567ae", "#23917f", "#b0469d", "#b58f00", "#6b55c4"];
+
+  // =====================================================================
+  // MAPF demo
+  // =====================================================================
+  class RT {
+    constructor() { this.v = new Map(); this.e = new Map(); this.park = new Map(); this.last = new Map(); this.owned = new Map(); }
+    reserve(a, t0, path) {
+      let prev = null;
+      path.forEach((c, k) => {
+        const t = t0 + k; this.v.set(c + "," + t, a);
+        if (prev !== null && prev !== c) this.e.set(prev + "," + c + "," + (t - 1), a);
+        if (!this.last.has(c)) this.last.set(c, new Map());
+        this.last.get(c).set(a, t); prev = c;
+      });
+      this.park.set(path[path.length - 1], { a, from: t0 + path.length - 1 });
+      this.owned.set(a, { t0, path });
+    }
+    release(a) {
+      const o = this.owned.get(a); if (!o) return; this.owned.delete(a);
+      let prev = null;
+      o.path.forEach((c, k) => {
+        const t = o.t0 + k;
+        if (this.v.get(c + "," + t) === a) this.v.delete(c + "," + t);
+        if (prev !== null && prev !== c && this.e.get(prev + "," + c + "," + (t - 1)) === a) this.e.delete(prev + "," + c + "," + (t - 1));
+        const m = this.last.get(c); if (m) { m.delete(a); if (!m.size) this.last.delete(c); }
+        prev = c;
+      });
+      const end = o.path[o.path.length - 1];
+      const p = this.park.get(end); if (p && p.a === a) this.park.delete(end);
+    }
+    cellFree(c, t, a) {
+      const o = this.v.get(c + "," + t); if (o !== undefined && o !== a) return false;
+      const p = this.park.get(c); return !p || p.a === a || t < p.from;
+    }
+    moveFree(x, y, t, a) { const o = this.e.get(y + "," + x + "," + t); return o === undefined || o === a; }
+    lastUse(c, a) {
+      const p = this.park.get(c); if (p && p.a !== a) return Infinity;
+      const m = this.last.get(c); if (!m) return -1;
+      let best = -1; m.forEach((t, who) => { if (who !== a && t > best) best = t; }); return best;
+    }
+  }
+  function heapPush(h, x) { h.push(x); let i = h.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (cmp(h[i], h[p]) >= 0) break; [h[i], h[p]] = [h[p], h[i]]; i = p; } }
+  function heapPop(h) {
+    const top = h[0], last = h.pop();
+    if (h.length) { h[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < h.length && cmp(h[l], h[m]) < 0) m = l; if (r < h.length && cmp(h[r], h[m]) < 0) m = r; if (m === i) break; [h[i], h[m]] = [h[m], h[i]]; i = m; } }
+    return top;
+  }
+  function cmp(a, b) { return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]; }
+  function stAstar(start, goal, t0, rt, agent) {
+    const dist = bfs(goal); if (dist[start] === Infinity) return null;
+    const last = rt.lastUse(goal, agent); if (last === Infinity) return null;
+    const tStar = Math.max(t0 + dist[start], last + 1);
+    const maxT = tStar + 40;
+    const h0 = Math.max(dist[start], tStar - t0);
+    const open = [[h0, h0, 0, start, t0]];
+    const parent = new Map([[start * 1000 + t0, -1]]);
+    let cnt = 0, exp = 0;
+    while (open.length) {
+      const [, , , cell, t] = heapPop(open);
+      if (cell === goal && t >= tStar) {
+        const path = []; let key = cell * 1000 + t;
+        while (key !== -1) { path.push(Math.floor(key / 1000)); key = parent.get(key); }
+        return path.reverse();
+      }
+      if (++exp > 40000) break;
+      if (t >= maxT) continue;
+      const nt = t + 1;
+      for (const nxt of [cell, ...NB[cell]]) {
+        const key = nxt * 1000 + nt;
+        if (parent.has(key)) continue;
+        if (!rt.cellFree(nxt, nt, agent)) continue;
+        if (nxt !== cell && !rt.moveFree(cell, nxt, t, agent)) continue;
+        parent.set(key, cell * 1000 + t);
+        const h = Math.max(dist[nxt], tStar - nt);
+        heapPush(open, [nt - t0 + h, h, ++cnt, nxt, nt]);
+      }
+    }
+    return null;
+  }
+
+  const mapf = { seed: 7, robots: [], plans: [], status: [], conflicts: [], T: 0, t: 0, timer: null, mode: "pp" };
+  function newScenario() {
+    const rnd = mulberry32(mapf.seed);
+    const starts = shuffle(AISLE, rnd).slice(0, 6);
+    const goalPool = shuffle(FREE.filter((c) => !starts.includes(c) && ch(c) !== "E"), rnd);
+    mapf.robots = starts.map((s, i) => ({ start: s, goal: goalPool[i], color: ROBOT_COLORS[i] }));
+  }
+  function planAll() {
+    const R = mapf.robots;
+    mapf.status = []; mapf.plans = [];
+    if (mapf.mode === "solo") {
+      R.forEach((r) => { mapf.plans.push(shortestPath(r.start, r.goal)); mapf.status.push("ok"); });
+    } else {
+      const rt = new RT();
+      R.forEach((r, i) => rt.reserve(i, 0, [r.start]));
+      R.forEach((r, i) => {
+        rt.release(i);
+        const p = stAstar(r.start, r.goal, 0, rt, i);
+        if (p) { rt.reserve(i, 0, p); mapf.plans[i] = p; mapf.status[i] = "ok"; }
+        else { rt.reserve(i, 0, [r.start]); mapf.plans[i] = [r.start]; mapf.status[i] = "fail"; }
+      });
+    }
+    mapf.T = Math.max(...mapf.plans.map((p) => p.length)) + 2;
+    const pos = (i, t) => mapf.plans[i][Math.min(t, mapf.plans[i].length - 1)];
+    mapf.conflicts = [];
+    for (let t = 0; t < mapf.T; t++) {
+      const seen = new Map();
+      R.forEach((_, i) => { const c = pos(i, t); if (seen.has(c)) mapf.conflicts.push({ t, a: seen.get(c), b: i }); else seen.set(c, i); });
+      if (t > 0) for (let i = 0; i < R.length; i++) for (let j = i + 1; j < R.length; j++)
+        if (pos(i, t) === pos(j, t - 1) && pos(j, t) === pos(i, t - 1) && pos(i, t) !== pos(i, t - 1)) mapf.conflicts.push({ t, a: i, b: j });
+    }
+    mapf.t = 0;
+  }
+  const mapfCanvas = document.getElementById("mapf-canvas");
+  function drawMapf() {
+    const { ctx, cell } = setupCanvas(mapfCanvas);
+    drawFloor(ctx, cell);
+    const R = mapf.robots, t = mapf.t;
+    if (document.getElementById("mapf-dist").checked && R.length) {
+      const d = bfs(R[0].goal);
+      ctx.font = `600 ${Math.max(8, cell * 0.36)}px ${css("--font-mono")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = css("--muted");
+      FREE.forEach((i) => { const [x, y] = center(i, cell); ctx.fillText(String(d[i]), x, y); });
+    }
+    R.forEach((r) => {
+      const [x, y] = center(r.goal, cell);
+      ctx.strokeStyle = r.color; ctx.lineWidth = 2.5; ctx.strokeRect(x - cell * 0.3, y - cell * 0.3, cell * 0.6, cell * 0.6);
+    });
+    const pos = (i, tt) => mapf.plans[i][Math.min(tt, mapf.plans[i].length - 1)];
+    R.forEach((r, i) => { // trails
+      ctx.strokeStyle = r.color; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(2, cell * 0.12); ctx.beginPath();
+      for (let k = 0; k <= t; k++) { const [x, y] = center(pos(i, k), cell); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    });
+    const hit = new Set(mapf.conflicts.filter((c) => c.t === t).flatMap((c) => [c.a, c.b]));
+    R.forEach((r, i) => {
+      const [x, y] = center(pos(i, t), cell);
+      ctx.beginPath(); ctx.arc(x, y, cell * 0.36, 0, Math.PI * 2); ctx.fillStyle = r.color; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+      if (hit.has(i)) { ctx.beginPath(); ctx.arc(x, y, cell * 0.5, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = css("--bad"); ctx.stroke(); }
+      ctx.fillStyle = "#ffffff"; ctx.font = `700 ${Math.max(9, cell * 0.42)}px ${css("--font-display")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), x, y + 0.5);
+    });
+    // readouts
+    document.getElementById("m-t").textContent = t;
+    const col = mapf.conflicts.filter((c) => c.t <= t).length;
+    const colEl = document.getElementById("m-col"); colEl.textContent = col; colEl.className = "v " + (col ? "bad" : "good");
+    let waits = 0;
+    const rows = R.map((r, i) => {
+      const p = mapf.plans[i]; let w = 0;
+      for (let k = 0; k + 1 < p.length; k++) if (p[k] === p[k + 1]) w++;
+      waits += w;
+      const sd = bfs(r.goal)[r.start];
+      const st = mapf.status[i] === "fail" ? '<span class="status-bad">no route</span>' :
+        (pos(i, t) === r.goal && t >= p.length - 1 ? '<span class="status-ok">parked</span>' : "moving");
+      return `<tr><td><span class="dot" style="background:${r.color}"></span>${i + 1}</td><td class="num">${sd}</td><td class="num">${mapf.status[i] === "fail" ? "–" : p.length - 1}</td><td class="num">${w}</td><td>${st}</td></tr>`;
+    });
+    document.getElementById("m-wait").textContent = waits;
+    document.getElementById("m-rows").innerHTML = rows.join("");
+  }
+  function stopPlay() { if (mapf.timer) { clearInterval(mapf.timer); mapf.timer = null; } document.getElementById("mapf-play").textContent = "Play"; }
+  function stepMapf() { if (mapf.t < mapf.T - 1) { mapf.t++; drawMapf(); } else stopPlay(); }
+  document.getElementById("mapf-play").addEventListener("click", () => {
+    if (mapf.timer) { stopPlay(); return; }
+    if (mapf.t >= mapf.T - 1) mapf.t = 0;
+    document.getElementById("mapf-play").textContent = "Pause";
+    mapf.timer = setInterval(stepMapf, 380);
+  });
+  document.getElementById("mapf-step").addEventListener("click", () => { stopPlay(); stepMapf(); });
+  document.getElementById("mapf-reset").addEventListener("click", () => { stopPlay(); mapf.t = 0; drawMapf(); });
+  document.getElementById("mapf-new").addEventListener("click", () => { stopPlay(); mapf.seed += 1; newScenario(); planAll(); drawMapf(); });
+  document.getElementById("mapf-dist").addEventListener("change", drawMapf);
+  document.querySelectorAll('input[name="mode"]').forEach((el) => el.addEventListener("change", () => { stopPlay(); mapf.mode = el.value; planAll(); drawMapf(); }));
+  newScenario(); planAll(); drawMapf(); redrawers.push(drawMapf);
+
+  // =====================================================================
+  // Allocation demo
+  // =====================================================================
+  const alloc = { seed: 3, scen: "even", show: "b", robots: [], orders: [] };
+  function newAlloc() {
+    const rnd = mulberry32(alloc.seed * 101 + (alloc.scen === "even" ? 1 : 2));
+    alloc.robots = shuffle(AISLE, rnd).slice(0, 4);
+    alloc.orders = shuffle(PODS, rnd).slice(0, alloc.scen === "even" ? 4 : 8);
+  }
+  function solveAlloc() {
+    const R = alloc.robots, O = alloc.orders;
+    const C = R.map((r) => O.map((o) => bfs(o)[r]));
+    // greedy FIFO: oldest order first, nearest free robot
+    const freeR = new Set(R.map((_, i) => i)); const greedy = [];
+    for (let j = 0; j < O.length && freeR.size; j++) {
+      let best = -1; freeR.forEach((i) => { if (best < 0 || C[i][j] < C[best][j]) best = i; });
+      greedy.push([best, j]); freeR.delete(best);
+    }
+    // optimal: brute force over injective maps robots -> orders (R <= O)
+    let bestCost = Infinity, bestMap = null; const used = new Array(O.length).fill(false), cur = [];
+    (function rec(i, cost) {
+      if (cost >= bestCost) return;
+      if (i === R.length) { bestCost = cost; bestMap = cur.slice(); return; }
+      for (let j = 0; j < O.length; j++) if (!used[j]) { used[j] = true; cur.push(j); rec(i + 1, cost + C[i][j]); cur.pop(); used[j] = false; }
+    })(0, 0);
+    const optimal = bestMap.map((j, i) => [i, j]);
+    return { C, greedy, optimal };
+  }
+  const allocCanvas = document.getElementById("alloc-canvas");
+  function drawAlloc() {
+    const { C, greedy, optimal } = solveAlloc();
+    const { ctx, cell } = setupCanvas(allocCanvas);
+    drawFloor(ctx, cell);
+    const drawRoute = (pairs, color, dash, off) => {
+      ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, cell * 0.12); ctx.setLineDash(dash);
+      pairs.forEach(([i, j]) => {
+        const p = shortestPath(alloc.robots[i], alloc.orders[j]); ctx.beginPath();
+        p.forEach((c, k) => { const [x, y] = center(c, cell); k ? ctx.lineTo(x + off, y + off) : ctx.moveTo(x + off, y + off); });
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+    };
+    if (alloc.show !== "o") drawRoute(greedy, css("--blue"), [cell * 0.25, cell * 0.18], -cell * 0.1);
+    if (alloc.show !== "g") drawRoute(optimal, css("--accent"), [], cell * 0.1);
+    alloc.orders.forEach((o, j) => {
+      const [x, y] = center(o, cell);
+      ctx.fillStyle = css("--card"); ctx.strokeStyle = css("--fg"); ctx.lineWidth = 1.2;
+      ctx.fillRect(x - cell * 0.38, y - cell * 0.38, cell * 0.76, cell * 0.76); ctx.strokeRect(x - cell * 0.38, y - cell * 0.38, cell * 0.76, cell * 0.76);
+      ctx.fillStyle = css("--fg"); ctx.font = `700 ${Math.max(8, cell * 0.36)}px ${css("--font-mono")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("#" + (j + 1), x, y + 0.5);
+    });
+    alloc.robots.forEach((r, i) => {
+      const [x, y] = center(r, cell);
+      ctx.beginPath(); ctx.arc(x, y, cell * 0.38, 0, Math.PI * 2); ctx.fillStyle = css("--shelf"); ctx.fill();
+      ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = "#ffffff"; ctx.font = `700 ${Math.max(8, cell * 0.36)}px ${css("--font-display")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("R" + (i + 1), x, y + 0.5);
+    });
+    // matrix
+    const g = new Set(greedy.map(([i, j]) => i + ":" + j)), o = new Set(optimal.map(([i, j]) => i + ":" + j));
+    let html = "<thead><tr><th></th>" + alloc.orders.map((_, j) => `<th>#${j + 1}</th>`).join("") + "</tr></thead><tbody>";
+    C.forEach((row, i) => {
+      html += `<tr><th>R${i + 1}</th>` + row.map((v, j) => {
+        const cls = [alloc.show !== "o" && g.has(i + ":" + j) ? "g" : "", alloc.show !== "g" && o.has(i + ":" + j) ? "o" : ""].join(" ").trim();
+        return `<td class="${cls}">${v}</td>`;
+      }).join("") + "</tr>";
+    });
+    document.getElementById("alloc-matrix").innerHTML = html + "</tbody>";
+    const tot = (pairs) => pairs.reduce((s, [i, j]) => s + C[i][j], 0);
+    const left = (pairs) => { const u = new Set(pairs.map(([, j]) => j)); return alloc.orders.map((_, j) => j).filter((j) => !u.has(j)).map((j) => "#" + (j + 1)); };
+    const gl = left(greedy), ol = left(optimal);
+    let t = `<div><span class="key-blue">Greedy</span> total travel<br><b>${tot(greedy)}</b> s</div><div><span class="key-orange">Optimal</span> total travel<br><b>${tot(optimal)}</b> s</div>`;
+    if (alloc.orders.length > alloc.robots.length) t += `<div>Left waiting, greedy<br><b>${gl.join(" ")}</b></div><div>Left waiting, optimal<br><b>${ol.join(" ")}</b></div>`;
+    document.getElementById("alloc-totals").innerHTML = t;
+  }
+  document.getElementById("alloc-new").addEventListener("click", () => { alloc.seed += 1; newAlloc(); drawAlloc(); });
+  document.querySelectorAll('input[name="scen"]').forEach((el) => el.addEventListener("change", () => { alloc.scen = el.value; newAlloc(); drawAlloc(); }));
+  document.querySelectorAll('input[name="show"]').forEach((el) => el.addEventListener("change", () => { alloc.show = el.value; drawAlloc(); }));
+  newAlloc(); drawAlloc(); redrawers.push(drawAlloc);
+
+  // =====================================================================
+  // Queue demo (c = 10 servers, service U(150, 250) s, Poisson arrivals)
+  // =====================================================================
+  function simQueue(rho) {
+    const c = 10, meanS = 200, horizon = 3 * 3600, lam = rho * c / meanS;
+    const rnd = mulberry32(Math.round(rho * 1000) + 17);
+    const arr = []; let t = 0;
+    for (;;) { t += -Math.log(1 - rnd()) / lam; if (t > horizon) break; arr.push(t); }
+    const free = new Array(c).fill(0); const start = [], end = [];
+    for (const a of arr) {
+      let k = 0; for (let s = 1; s < c; s++) if (free[s] < free[k]) k = s;
+      const st = Math.max(a, free[k]); const sv = 150 + 100 * rnd();
+      start.push(st); end.push(st + sv); free[k] = st + sv;
+    }
+    const pts = [];
+    for (let m = 0; m <= horizon; m += 60) {
+      let q = 0; for (let i = 0; i < arr.length && arr[i] <= m; i++) if (start[i] > m) q++;
+      pts.push([m, q]);
+    }
+    const done = end.filter((e) => e <= horizon).length;
+    const waits = arr.map((a, i) => Math.min(start[i], horizon) - a);
+    return { pts, offered: lam * 3600, done: done / 3, wait: waits.reduce((s, x) => s + x, 0) / Math.max(1, waits.length), end: pts[pts.length - 1][1] };
+  }
+  const qRef = simQueue(0.85);
+  function drawQueue() {
+    const rho = parseFloat(document.getElementById("rho").value);
+    document.getElementById("rho-val").textContent = rho.toFixed(2);
+    const r = simQueue(rho);
+    document.getElementById("q-off").textContent = Math.round(r.offered);
+    document.getElementById("q-done").textContent = Math.round(r.done);
+    document.getElementById("q-wait").textContent = r.wait < 90 ? Math.round(r.wait) + " s" : (r.wait / 60).toFixed(1) + " min";
+    const endEl = document.getElementById("q-end"); endEl.textContent = r.end; endEl.className = "v " + (r.end > 20 ? "bad" : "");
+    const svg = document.getElementById("q-chart");
+    const L = 44, R = 628, T = 12, B = 196;
+    const ymaxRaw = Math.max(10, ...r.pts.map((p) => p[1]), ...qRef.pts.map((p) => p[1]));
+    const step = ymaxRaw <= 20 ? 5 : ymaxRaw <= 60 ? 10 : ymaxRaw <= 150 ? 25 : ymaxRaw <= 300 ? 50 : 100;
+    const ymax = Math.ceil(ymaxRaw / step) * step;
+    const x = (s) => L + (s / (3 * 3600)) * (R - L), y = (q) => B - (q / ymax) * (B - T);
+    let s = "";
+    for (let v = 0; v <= ymax; v += step) s += `<line x1="${L}" x2="${R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text class="svg-muted" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+    for (let h = 0; h <= 3; h++) s += `<text class="svg-muted" x="${x(h * 3600)}" y="${B + 16}" text-anchor="middle">${h} h</text>`;
+    const line = (pts) => pts.map((p) => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+    s += `<polyline points="${line(qRef.pts)}" fill="none" stroke="var(--muted)" stroke-width="1.5" opacity="0.7"/>`;
+    s += `<polygon points="${x(0)},${B} ${line(r.pts)} ${x(3 * 3600)},${B}" fill="var(--accent)" opacity="0.15"/>`;
+    s += `<polyline points="${line(r.pts)}" fill="none" stroke="var(--accent)" stroke-width="2.2"/>`;
+    s += `<text class="svg-muted" x="${L}" y="${B + 30}">orders waiting for a robot</text>`;
+    svg.innerHTML = s;
+  }
+  document.getElementById("rho").addEventListener("input", drawQueue);
+  document.querySelectorAll("[data-rho]").forEach((b) => b.addEventListener("click", () => { document.getElementById("rho").value = b.dataset.rho; drawQueue(); }));
+  document.getElementById("q-chart").setAttribute("viewBox", "0 0 640 236");
+  drawQueue();
+
+  // =====================================================================
+  // Static figures
+  // =====================================================================
+  (function conflictFig() {
+    const s = 34, svg = document.getElementById("conflict-fig");
+    const strip = (x0, label, a, b, aArrowTo, bArrowTo) => {
+      let o = `<text class="svg-text" x="${x0}" y="14" font-weight="600">${label}</text>`;
+      for (let k = 0; k < 4; k++) o += `<rect x="${x0 + k * s}" y="30" width="${s}" height="${s}" fill="var(--floor)" stroke="var(--line)"/>`;
+      const cx = (k) => x0 + k * s + s / 2;
+      o += `<circle cx="${cx(a)}" cy="47" r="11" fill="${ROBOT_COLORS[0]}"/><text x="${cx(a)}" y="51" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="sans-serif">A</text>`;
+      o += `<circle cx="${cx(b)}" cy="47" r="11" fill="${ROBOT_COLORS[1]}"/><text x="${cx(b)}" y="51" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="sans-serif">B</text>`;
+      o += `<path d="M ${cx(a)} 76 Q ${(cx(a) + cx(aArrowTo)) / 2} 94 ${cx(aArrowTo)} 78" fill="none" stroke="${ROBOT_COLORS[0]}" stroke-width="2" marker-end="url(#ah0)"/>`;
+      o += `<path d="M ${cx(b)} 76 Q ${(cx(b) + cx(bArrowTo)) / 2} ${bArrowTo === aArrowTo ? 104 : 108} ${cx(bArrowTo)} 78" fill="none" stroke="${ROBOT_COLORS[1]}" stroke-width="2" marker-end="url(#ah1)"/>`;
+      return o;
+    };
+    let o = `<defs>
+      <marker id="ah0" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="${ROBOT_COLORS[0]}"/></marker>
+      <marker id="ah1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="${ROBOT_COLORS[1]}"/></marker></defs>`;
+    o += strip(20, "Vertex: both enter cell 2 at t+1", 1, 3, 2, 2);
+    o += strip(340, "Swap: A and B trade cells 1 and 2", 1, 2, 2, 1);
+    svg.innerHTML = o;
+  })();
+
+  (function rtFig() {
+    const svg = document.getElementById("rt-fig");
+    const L = 70, T = 30, s = 30, ncell = 7, nt = 7;
+    let o = "";
+    for (let c = 0; c < ncell; c++) o += `<text class="svg-muted" x="${L + c * s + s / 2}" y="${T - 10}" text-anchor="middle">cell ${c}</text>`;
+    for (let t = 0; t < nt; t++) {
+      o += `<text class="svg-muted" x="${L - 10}" y="${T + t * s + s / 2 + 4}" text-anchor="end">t = ${t}</text>`;
+      for (let c = 0; c < ncell; c++) {
+        let fill = "var(--floor)", label = "";
+        if (c === t) { fill = ROBOT_COLORS[0]; label = "A"; }
+        if (c === 3 && t === 4) { fill = ROBOT_COLORS[1]; label = "B"; }
+        o += `<rect x="${L + c * s}" y="${T + t * s}" width="${s}" height="${s}" fill="${fill}" stroke="var(--line)"/>`;
+        if (label) o += `<text x="${L + c * s + s / 2}" y="${T + t * s + s / 2 + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="sans-serif">${label}</text>`;
+      }
+    }
+    // B's wished-for slot
+    o += `<rect x="${L + 3 * s + 2}" y="${T + 3 * s + 2}" width="${s - 4}" height="${s - 4}" fill="none" stroke="var(--bad)" stroke-width="2.5" stroke-dasharray="4 3"/>`;
+    const nx = L + ncell * s + 18;
+    o += `<line x1="${L + 3 * s + s}" y1="${T + 3 * s + s / 2}" x2="${nx - 4}" y2="${T + 3 * s + s / 2}" stroke="var(--bad)" stroke-width="1"/>`;
+    o += `<text class="svg-text" x="${nx}" y="${T + 3 * s + s / 2 + 4}">B wanted (3, 3): held by A</text>`;
+    o += `<line x1="${L + 3 * s + s}" y1="${T + 4 * s + s / 2}" x2="${nx - 4}" y2="${T + 4 * s + s / 2}" stroke="var(--blue)" stroke-width="1"/>`;
+    o += `<text class="svg-text" x="${nx}" y="${T + 4 * s + s / 2 + 4}">B waits 1 tick, crosses at (3, 4)</text>`;
+    o += `<text class="svg-muted" x="${nx}" y="${T + 0 * s + s / 2 + 4}">A booked first: (0,0) (1,1) (2,2) …</text>`;
+    o += `<text class="svg-muted" x="${L}" y="${T + nt * s + 22}">↓ time (ticks)    → position along the corridor</text>`;
+    svg.innerHTML = o;
+  })();
+
+  // ---------- chapter rail highlight ----------
+  try {
+    const links = [...document.querySelectorAll(".rail a")];
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id)); });
+    }, { rootMargin: "-20% 0px -70% 0px" });
+    document.querySelectorAll(".chapter").forEach((s) => io.observe(s));
+  } catch (e) { /* no observer: rail stays plain */ }
+
+  let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(redrawAll, 150); });
+})();
+</script>
+
+</body>
+</html>

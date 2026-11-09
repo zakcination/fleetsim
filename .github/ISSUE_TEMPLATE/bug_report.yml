@@ -1,0 +1,24 @@
+name: Bug report
+description: Something crashes, collides, or reports a wrong number.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command you ran and the output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+  - type: input
+    id: version
+    attributes:
+      label: fleetsim version / commit
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [planner, allocation, simulation, analytics, web demo, docs, other]

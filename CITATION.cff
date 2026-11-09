@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use fleetsim in research or teaching, please cite it."
+title: "fleetsim: an open simulator for robotic fulfillment fleets (task allocation + MAPF + analytics)"
+type: software
+authors:
+  - alias: zakcination
+license: MIT
+repository-code: "https://github.com/zakcination/fleetsim"
+version: 0.1.0
+date-released: 2026-11-09
+keywords: [multi-agent path finding, task allocation, warehouse robotics, simulation, operations research]
