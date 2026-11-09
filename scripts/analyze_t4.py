@@ -67,14 +67,22 @@ fig.suptitle(f"Trial {NAME} · 50 robots, 2 technicians, batteries off · 10 see
 fig.tight_layout(); fig.savefig(f"results/{NAME}/{NAME.lower()}.png", dpi=150)
 print(f"wrote results/{NAME}/{NAME.lower()}.png")
 
-if NAME != "T4":  # did the base fix help? Same seeds, corridor arms, against T4
-    old = pd.read_csv("results/T4/runs.csv")
+PREV = {"T4b": "T4", "T4c": "T4b"}.get(NAME)
+if PREV:  # did the fix between the two trials help? Same seeds, corridor arms
+    old = pd.read_csv(f"results/{PREV}/runs.csv")
     for f in (4.0, 12.0):
         a = runs[(runs.faults == f) & runs.corridors].set_index("seed")
         b = old[(old.faults == f) & old.corridors].set_index("seed")
         m, lo, hi = ci(a.throughput_per_h / b.throughput_per_h)
-        print(f"faults x{f:g}: corridor arm tasks/h {NAME} / T4 = {m:.3f} [{lo:.3f}, {hi:.3f}]"
-              f" | mean {b.throughput_per_h.mean():.1f} -> {a.throughput_per_h.mean():.1f}")
+        same = int(((a.throughput_per_h - b.throughput_per_h).abs() < 1e-9).sum())
+        print(f"faults x{f:g}: corridor arm tasks/h {NAME} / {PREV} = {m:.3f} [{lo:.3f}, {hi:.3f}]"
+              f" | mean {b.throughput_per_h.mean():.1f} -> {a.throughput_per_h.mean():.1f} | runs with identical tasks/h: {same} of {len(a)}")
     on = runs[runs.corridors].sort_values("throughput_per_h")
     print("slowest corridor runs:")
     print(on[["run_id", "throughput_per_h", "failures", "availability", "mttr_s", "repair_queue_s", "blocked_share", "wall_s"]].head(4).to_string(index=False))
+    print(f"computing time per run: median {runs.wall_s.median():.0f} s, max {runs.wall_s.max():.0f} s")
+if "tech_idle_with_work_max_s" in runs:
+    on = runs[runs.corridors]
+    print("longest time a technician was idle with a job waiting, per corridor run (s):",
+          on.sort_values(["faults", "seed"]).tech_idle_with_work_max_s.astype(int).tolist())
+    print(on.groupby("faults")[["tech_idle_with_work_share", "tech_idle_with_work_max_s"]].agg(["mean", "max"]).round(3).to_string())
