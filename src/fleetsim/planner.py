@@ -145,10 +145,17 @@ def space_time_astar(
             return None
         t_star = max(t0 + base, last + 1)
     else:
+        holder = rt.park.get(goal)
+        if holder is not None and holder[0] != agent:
+            return None  # a stopped robot occupies the goal for good: no dwell window will ever open
         t_star = t0 + base
         limit = (max_t if max_t is not None else t0 + 4 * base + 400)
-        while t_star <= limit and not all(rt.cell_free(goal, t_star + k, agent) for k in range(dwell + 1)):
-            t_star += 1
+        while t_star <= limit:
+            # jump past the first conflict in the window: every start up to it would contain it too
+            bad = next((k for k in range(dwell + 1) if not rt.cell_free(goal, t_star + k, agent)), None)
+            if bad is None:
+                break
+            t_star += bad + 1
         if t_star > limit:
             return None
     if max_t is None:

@@ -15,7 +15,8 @@ from .sim import SimConfig, run
 
 def _cmd_run(a: argparse.Namespace) -> None:
     cfg = SimConfig(n_robots=a.n, allocator=a.allocator, k=a.k, ticks=a.ticks, warmup=a.warmup,
-                    load=a.load, seed=a.seed)
+                    load=a.load, seed=a.seed, battery=a.battery, faults=a.faults, techs=a.techs,
+                    maintenance=a.maintenance)
     res = run(cfg, log_progress=True)
     print(json.dumps(analytics.summarize(res), indent=2))
     if a.db or a.parquet:
@@ -38,13 +39,14 @@ def _cmd_bench(a: argparse.Namespace) -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     cfgs = []
-    for load in a.loads:
-        for n in a.robots:
-            for alloc in a.allocators:
-                for aging in (a.aging if alloc == "hungarian_aging" else [a.aging[0]]):
-                    for rep in range(a.replications):
-                        cfgs.append(SimConfig(n_robots=n, allocator=alloc, k=a.k, aging=aging, ticks=a.ticks,
-                                              warmup=a.warmup, load=load, seed=a.seed + rep))
+    import itertools
+
+    for load, n, alloc, faults, techs, maint in itertools.product(a.loads, a.robots, a.allocators, a.faults, a.techs, a.maintenance):
+        for aging in (a.aging if alloc == "hungarian_aging" else [a.aging[0]]):
+            for rep in range(a.replications):
+                cfgs.append(SimConfig(n_robots=n, allocator=alloc, k=a.k, aging=aging, ticks=a.ticks, warmup=a.warmup,
+                                      load=load, seed=a.seed + rep, battery=a.battery, chargers=a.chargers,
+                                      faults=faults, techs=techs, maintenance=maint, initial_wear=a.initial_wear))
     logs = not (a.no_db and a.no_parquet)
     rows = []
     if logs or a.workers <= 1:
@@ -104,6 +106,10 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--warmup", type=int, default=600)
     r.add_argument("--load", type=float, default=0.85)
     r.add_argument("--seed", type=int, default=0)
+    r.add_argument("--battery", action="store_true")
+    r.add_argument("--faults", type=float, default=0.0)
+    r.add_argument("--techs", type=int, default=2)
+    r.add_argument("--maintenance", default="none", choices=["none", "interval", "condition"])
     r.add_argument("--db", help="append tick/order/plan logs to this SQLite file")
     r.add_argument("--parquet", help="write Parquet logs under this directory")
     r.set_defaults(func=_cmd_run)
@@ -120,6 +126,12 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--baseline", help="allocator that paired.csv compares against (default: first)")
     b.add_argument("--workers", type=int, default=4, help="parallel processes when no logs are written")
     b.add_argument("--seed", type=int, default=0)
+    b.add_argument("--battery", action="store_true", help="robots run on batteries and visit chargers")
+    b.add_argument("--chargers", type=int, default=4)
+    b.add_argument("--faults", type=float, nargs="+", default=[0.0], help="fault-rate multipliers (0 off, 4 normal, 12 frequent)")
+    b.add_argument("--techs", type=int, nargs="+", default=[2], help="technician counts")
+    b.add_argument("--maintenance", nargs="+", default=["none"], choices=["none", "interval", "condition"])
+    b.add_argument("--initial-wear", type=float, default=0.15, help="parts start with wear ~ U(0, this)")
     b.add_argument("--out", default="results")
     b.add_argument("--no-db", action="store_true")
     b.add_argument("--no-parquet", action="store_true")
